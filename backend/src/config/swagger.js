@@ -34,7 +34,7 @@ and comfort kits via QR code and pay with Nomba.
         description: 'Development'
       },
       {
-        url: 'https://wakacharge.onrender.com',
+         url: 'https://wakacharge.onrender.com',
         description: 'Production'
       }
     ],
