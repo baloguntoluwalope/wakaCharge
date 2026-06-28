@@ -18,18 +18,18 @@ const adminRoutes = require('./routes/admin.routes')
 const notificationRoutes = require('./routes/notification.routes')
 const trustScoreRoutes = require('./routes/trustscore.routes')
 
-
 connectDB()
 
 const app = express()
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: [
-    'Content-Type', 'Authorization', 'x-nomba-signature'
-  ]
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-nomba-signature'],
+  credentials: false
 }))
+
+app.options('*', cors())
 
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
@@ -44,15 +44,23 @@ app.use(
       }
       .swagger-ui .topbar-wrapper::after {
         content: '⚡ Waka Charge API';
-        color: #1DB954;
+        color: #f59e0b;
         font-size: 18px;
         font-weight: bold;
         padding-left: 20px;
       }
       .swagger-ui .topbar-wrapper img { display: none; }
+      .swagger-ui .info .title { color: #0D1B2A; }
+      .swagger-ui .scheme-container { background: #f8fafc; padding: 16px; border-radius: 8px; }
     `,
     customSiteTitle: 'Waka Charge API Docs',
-    swaggerOptions: { persistAuthorization: true }
+    swaggerOptions: {
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      docExpansion: 'none',
+      filter: true,
+      tryItOutEnabled: true
+    }
   })
 )
 
