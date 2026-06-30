@@ -32,7 +32,25 @@ const DeviceSchema = new mongoose.Schema(
       default: 'excellent'
     },
     totalRentals: { type: Number, default: 0 },
-    notes: { type: String, default: '' }
+    notes: { type: String, default: '' },
+    batteryLevel: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: 100
+    },
+    lastMaintenanceDate: {
+      type: Date,
+      default: Date.now
+    },
+    totalCycles: {
+      type: Number,
+      default: 0
+    },
+    needsMaintenance: {
+      type: Boolean,
+      default: false
+    }
   },
   { timestamps: true }
 )

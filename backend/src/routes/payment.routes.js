@@ -7,6 +7,7 @@ const {
   verifyCheckoutPayment,
   handleWebhook,
   getTransactions,
+  pollPaymentStatus,
   getReconciliationReport,
   getAuditLogs
 } = require('../controllers/payment.controller')
@@ -14,17 +15,35 @@ const {
   protect,
   authorize
 } = require('../middleware/auth.middleware')
+const {
+  validateCheckout
+} = require('../middleware/validate.middleware')
+const {
+  paymentLimiter
+} = require('../middleware/ratelimit.middleware')
 
 /**
  * @swagger
  * tags:
  *   name: Payments
  *   description: |
- *     Nomba-powered payment system with:
- *     - Virtual Account wallet funding
- *     - Nomba Checkout card payments
- *     - Webhook handling with idempotency
- *     - Reconciliation and audit logs
+ *     Nomba-powered payment system.
+ *
+ *     ### Two Ways To Fund Wallet
+ *     1. **Virtual Account** — Transfer to your Nomba account number. Instant via webhook.
+ *     2. **Checkout** — Pay by card via Nomba checkout link.
+ *
+ *     ### Security Features
+ *     - Webhook HMAC SHA-512 signature verification
+ *     - Idempotency keys prevent duplicate charges
+ *     - MongoDB atomic transactions prevent partial updates
+ *     - Rate limiting on payment endpoints
+ *     - Full audit trail on every transaction
+ *
+ *     ### Admin Features
+ *     - Daily reconciliation reports
+ *     - Full payment audit logs
+ *     - Discrepancy detection
  */
 
 // ─────────────────────────────────────────────────
@@ -83,9 +102,12 @@ router.get('/wallet', protect, getWalletBalance)
  *     security:
  *       - bearerAuth: []
  *     description: |
- *       Returns the student's dedicated Nomba virtual account number.
- *       Transfer any amount to this account to fund your Waka Wallet instantly.
- *       Webhook confirms the transfer and credits wallet automatically.
+ *       Returns the student's dedicated Nomba virtual account.
+ *       Transfer any amount to fund wallet instantly.
+ *       Nomba fires a webhook which automatically credits the wallet.
+ *
+ *       If no virtual account exists yet, one is generated via Nomba API.
+ *       Each student gets a unique permanent account number.
  *     responses:
  *       200:
  *         description: Virtual account details
@@ -134,9 +156,18 @@ router.get('/virtual-account', protect, getVirtualAccount)
  *     security:
  *       - bearerAuth: []
  *     description: |
- *       Alternative to virtual account.
- *       Creates a Nomba checkout session for card payment.
- *       Supports idempotency key to prevent duplicate charges.
+ *       Alternative to virtual account transfer.
+ *       Creates a Nomba hosted checkout page for card payment.
+ *
+ *       **Idempotency:**
+ *       Pass an idempotencyKey to prevent duplicate checkout sessions
+ *       if the same request is sent multiple times.
+ *
+ *       **After payment:**
+ *       - Poll GET /verify/:reference every 3 seconds
+ *       - Or wait for webhook to credit wallet automatically
+ *
+ *       Rate limited to 10 requests per minute.
  *     requestBody:
  *       required: true
  *       content:
@@ -151,8 +182,8 @@ router.get('/virtual-account', protect, getVirtualAccount)
  *                 description: Amount in Naira. Minimum ₦100.
  *               idempotencyKey:
  *                 type: string
- *                 example: unique-key-12345
- *                 description: Optional. Prevents duplicate checkout sessions.
+ *                 example: checkout-user123-1719312000
+ *                 description: Optional unique key to prevent duplicate sessions
  *     responses:
  *       200:
  *         description: Checkout session created
@@ -173,14 +204,20 @@ router.get('/virtual-account', protect, getVirtualAccount)
  *                 amount:
  *                   type: number
  *                   example: 1000
- *                 message:
- *                   type: string
  *       400:
- *         description: Invalid amount
+ *         description: Validation error — amount below minimum
  *       409:
  *         description: Duplicate request still processing
+ *       429:
+ *         description: Too many requests — rate limited
  */
-router.post('/checkout', protect, createCheckout)
+router.post(
+  '/checkout',
+  protect,
+  paymentLimiter,
+  validateCheckout,
+  createCheckout
+)
 
 // ─────────────────────────────────────────────────
 // VERIFY PAYMENT
@@ -195,8 +232,12 @@ router.post('/checkout', protect, createCheckout)
  *     security:
  *       - bearerAuth: []
  *     description: |
- *       Verifies a checkout payment with Nomba and credits wallet if successful.
- *       Can be polled every 3 seconds from frontend until payment is confirmed.
+ *       Verifies a checkout payment with Nomba.
+ *       If successful, credits wallet and creates reconciliation record.
+ *
+ *       **Frontend polling:**
+ *       Call this every 3 seconds after checkout redirect
+ *       until status returns success.
  *     parameters:
  *       - in: path
  *         name: reference
@@ -233,11 +274,65 @@ router.post('/checkout', protect, createCheckout)
  *                       type: string
  *                       example: success
  *       400:
- *         description: Payment not yet confirmed
+ *         description: Payment not yet confirmed by Nomba
+ *       404:
+ *         description: Transaction reference not found
+ */
+router.get('/verify/:reference', protect, verifyCheckoutPayment)
+
+// ─────────────────────────────────────────────────
+// POLL PAYMENT STATUS
+// ─────────────────────────────────────────────────
+
+/**
+ * @swagger
+ * /api/v1/payments/status/{reference}:
+ *   get:
+ *     summary: Poll payment status — lightweight check for frontend
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     description: |
+ *       Lightweight endpoint for frontend polling.
+ *       Does not call Nomba API — checks internal database only.
+ *       Use this every 3 seconds while waiting for webhook confirmation.
+ *       Switch to /verify/:reference if you need to force a Nomba check.
+ *     parameters:
+ *       - in: path
+ *         name: reference
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: WAKA-CHECKOUT-A1B2C3D4E5F6
+ *     responses:
+ *       200:
+ *         description: Current payment status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 reference:
+ *                   type: string
+ *                 status:
+ *                   type: string
+ *                   enum: [pending, success, failed]
+ *                   example: pending
+ *                 amount:
+ *                   type: number
+ *                 walletBalance:
+ *                   type: number
+ *                   nullable: true
+ *                   description: Only returned when status is success
+ *                 message:
+ *                   type: string
+ *                   example: ⏳ Waiting for payment confirmation...
  *       404:
  *         description: Transaction not found
  */
-router.get('/verify/:reference', protect, verifyCheckoutPayment)
+router.get('/status/:reference', protect, pollPaymentStatus)
 
 // ─────────────────────────────────────────────────
 // NOMBA WEBHOOK
@@ -250,28 +345,26 @@ router.get('/verify/:reference', protect, verifyCheckoutPayment)
  *     summary: Nomba webhook receiver
  *     tags: [Payments]
  *     description: |
- *       Receives and processes payment events from Nomba.
+ *       Receives and processes real-time payment events from Nomba.
+ *       No authentication required — uses HMAC signature verification instead.
  *
  *       **Supported events:**
- *       - `virtual_account.credit` — Student transfers to their virtual account
+ *       - `virtual_account.credit` — Student transfers to virtual account
  *       - `transfer.success` — Bank transfer confirmed
  *       - `checkout.success` — Card payment completed
  *       - `payment.success` — General payment success
  *
- *       **Security:**
- *       - Webhook signature verified via HMAC SHA-512
- *       - Duplicate webhooks ignored via idempotency check
- *       - All events logged to audit trail
+ *       **Processing pipeline:**
+ *       1. Verify HMAC SHA-512 signature
+ *       2. Log webhook received to audit trail
+ *       3. Check idempotency — ignore duplicates
+ *       4. Find user by virtual account number
+ *       5. Credit wallet atomically via MongoDB session
+ *       6. Create reconciliation record
+ *       7. Send email notification
+ *       8. Create in-app notification
  *
- *       **Flow:**
- *       1. Nomba sends webhook
- *       2. Signature verified
- *       3. Duplicate check performed
- *       4. Wallet credited atomically
- *       5. Reconciliation record created
- *       6. Student notified
- *
- *       Always returns 200 to Nomba to prevent retries after processing.
+ *       Always returns HTTP 200 to prevent Nomba retries.
  *     requestBody:
  *       content:
  *         application/json:
@@ -280,17 +373,18 @@ router.get('/verify/:reference', protect, verifyCheckoutPayment)
  *             properties:
  *               event:
  *                 type: string
- *                 example: virtual_account.credit
  *                 enum:
  *                   - virtual_account.credit
  *                   - transfer.success
  *                   - checkout.success
  *                   - payment.success
+ *                 example: virtual_account.credit
  *               data:
  *                 type: object
  *                 properties:
  *                   accountNumber:
  *                     type: string
+ *                     description: Student virtual account number
  *                   amount:
  *                     type: number
  *                   reference:
@@ -310,7 +404,7 @@ router.get('/verify/:reference', protect, verifyCheckoutPayment)
  *                   type: string
  *                   example: Webhook processed
  *       400:
- *         description: Invalid webhook signature
+ *         description: Invalid HMAC signature
  */
 router.post('/webhook', handleWebhook)
 
@@ -343,7 +437,6 @@ router.post('/webhook', handleWebhook)
  *         schema:
  *           type: string
  *           enum: [pending, success, failed]
- *         description: Filter by status
  *       - in: query
  *         name: page
  *         schema:
@@ -388,9 +481,11 @@ router.get('/transactions', protect, getTransactions)
  *     security:
  *       - bearerAuth: []
  *     description: |
- *       Compares expected vs actual payment amounts.
- *       Shows unreconciled transactions and discrepancies.
- *       Use to verify Nomba balance matches internal records.
+ *       Compares expected vs actual payment amounts for a given day.
+ *       Shows unreconciled transactions, discrepancies, and reconciliation rate.
+ *
+ *       Use this to verify Nomba settlement matches internal records.
+ *       Run daily as part of financial operations.
  *     parameters:
  *       - in: query
  *         name: date
@@ -401,7 +496,7 @@ router.get('/transactions', protect, getTransactions)
  *         description: Date to reconcile. Defaults to today.
  *     responses:
  *       200:
- *         description: Reconciliation summary
+ *         description: Reconciliation summary with discrepancy details
  *         content:
  *           application/json:
  *             schema:
@@ -414,19 +509,25 @@ router.get('/transactions', protect, getTransactions)
  *                   properties:
  *                     date:
  *                       type: string
+ *                       example: "2026-06-25"
  *                     totalTransactions:
  *                       type: number
+ *                       example: 145
  *                     totalExpected:
  *                       type: number
+ *                       example: 125000
  *                     totalActual:
  *                       type: number
+ *                       example: 124500
  *                     totalDiscrepancy:
  *                       type: number
+ *                       example: 500
  *                     unreconciledCount:
  *                       type: number
+ *                       example: 2
  *                     reconciliationRate:
  *                       type: string
- *                       example: "98.50%"
+ *                       example: "98.62%"
  *                 unreconciled:
  *                   type: object
  *                   properties:
@@ -434,8 +535,6 @@ router.get('/transactions', protect, getTransactions)
  *                       type: number
  *                     items:
  *                       type: array
- *       401:
- *         description: Not authorized
  *       403:
  *         description: Admin access required
  */
@@ -459,15 +558,17 @@ router.get(
  *     security:
  *       - bearerAuth: []
  *     description: |
- *       Full audit trail of all payment-related actions.
- *       Every wallet credit, checkout, webhook, and refund is logged.
- *       Includes who did it, when, what changed, and the result.
+ *       Full immutable audit trail of all payment actions.
+ *       Every wallet credit, checkout, webhook, refund, and failure is logged.
+ *       Includes who did it, when, what changed before and after, and the result.
+ *
+ *       Use for dispute resolution, financial auditing, and compliance.
  *     parameters:
  *       - in: query
  *         name: userId
  *         schema:
  *           type: string
- *         description: Filter by specific user
+ *         description: Filter by specific user ID
  *       - in: query
  *         name: action
  *         schema:
@@ -483,6 +584,11 @@ router.get(
  *             - DEPOSIT_REFUNDED
  *             - LATE_FEE_CHARGED
  *         description: Filter by action type
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [success, failed, warning]
  *       - in: query
  *         name: page
  *         schema:
@@ -514,20 +620,33 @@ router.get(
  *                     properties:
  *                       action:
  *                         type: string
+ *                         example: WALLET_FUNDED
  *                       userId:
  *                         type: object
+ *                         properties:
+ *                           name:
+ *                             type: string
+ *                           email:
+ *                             type: string
+ *                           role:
+ *                             type: string
  *                       resourceType:
  *                         type: string
+ *                         example: Transaction
  *                       previousState:
  *                         type: object
  *                       newState:
  *                         type: object
+ *                       metadata:
+ *                         type: object
  *                       status:
+ *                         type: string
+ *                         example: success
+ *                       ipAddress:
  *                         type: string
  *                       createdAt:
  *                         type: string
- *       401:
- *         description: Not authorized
+ *                         format: date-time
  *       403:
  *         description: Admin access required
  */

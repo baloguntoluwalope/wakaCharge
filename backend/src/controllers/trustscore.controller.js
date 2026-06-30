@@ -100,8 +100,39 @@ const getRNPLStudents = async (req, res) => {
   })
 }
 
+// Add to trustscore.controller.js
+
+const getLeaderboard = async (req, res) => {
+  const { campus } = req.query
+
+  const filter = { role: 'student' }
+  if (campus) filter.campus = campus
+
+  const topStudents = await User.find(filter)
+    .select('name campus trustScore trustLevel totalSuccessfulRentals')
+    .sort({ trustScore: -1 })
+    .limit(10)
+
+  res.status(200).json({
+    success: true,
+    leaderboard: topStudents.map((s, index) => ({
+      rank: index + 1,
+      name: s.name,
+      campus: s.campus,
+      trustScore: s.trustScore,
+      trustLevel: s.trustLevel,
+      successfulRentals: s.totalSuccessfulRentals,
+      badge: index === 0 ? '🥇'
+        : index === 1 ? '🥈'
+        : index === 2 ? '🥉'
+        : '⭐'
+    }))
+  })
+}
+
 module.exports = {
   getTrustScore,
   payRNPLDebt,
-  getRNPLStudents
+  getRNPLStudents,
+  getLeaderboard
 }

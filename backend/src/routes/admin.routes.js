@@ -4,47 +4,197 @@ const {
   getAdminDashboard,
   getAllUsers,
   createOperator,
-  onboardOperator,
-  reassignOperator,
   getAllRentals,
   getRevenue,
   deactivateUser,
-  activateUser
+  getAnalytics
 } = require('../controllers/admin.controller')
-const { protect, authorize } = require('../middleware/auth.middleware')
+const {
+  protect,
+  authorize
+} = require('../middleware/auth.middleware')
 
 /**
  * @swagger
  * tags:
  *   name: Admin
- *   description: Admin platform management
+ *   description: |
+ *     Admin-only platform management.
+ *     Full access to users, rentals, revenue, analytics and audit trails.
+ *     All endpoints require admin JWT token.
  */
 
-const adminOnly = [protect, authorize('admin')]
-
-// ─── Dashboard ────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────
+// DASHBOARD
+// ─────────────────────────────────────────────────
 
 /**
  * @swagger
  * /api/v1/admin/dashboard:
  *   get:
- *     summary: Full admin dashboard
+ *     summary: Full admin dashboard — users, revenue, rentals, analytics
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Users, revenue, rentals, analytics
+ *         description: Complete platform statistics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 dashboard:
+ *                   type: object
+ *                   properties:
+ *                     users:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: number
+ *                           example: 1250
+ *                         students:
+ *                           type: number
+ *                           example: 1200
+ *                         operators:
+ *                           type: number
+ *                           example: 50
+ *                     stations:
+ *                       type: number
+ *                       example: 12
+ *                     devices:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: number
+ *                         status:
+ *                           type: array
+ *                     rentals:
+ *                       type: object
+ *                       properties:
+ *                         active:
+ *                           type: number
+ *                         today:
+ *                           type: number
+ *                         overdue:
+ *                           type: number
+ *                     revenue:
+ *                       type: object
+ *                       properties:
+ *                         today:
+ *                           type: number
+ *                           example: 45000
+ *                         weekly:
+ *                           type: number
+ *                           example: 280000
+ *                         monthly:
+ *                           type: number
+ *                           example: 1200000
+ *                     analytics:
+ *                       type: object
+ *                       properties:
+ *                         mostRentedDevice:
+ *                           type: string
+ *                           example: powerbank
+ *                         rentalsByType:
+ *                           type: array
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Admin access required
  */
-router.get('/dashboard', ...adminOnly, getAdminDashboard)
+router.get(
+  '/dashboard',
+  protect,
+  authorize('admin'),
+  getAdminDashboard
+)
 
-// ─── Users ────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────
+// ANALYTICS
+// ─────────────────────────────────────────────────
+
+/**
+ * @swagger
+ * /api/v1/admin/analytics:
+ *   get:
+ *     summary: Deep analytics — peak hours, campus stats, device popularity, revenue trends
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     description: |
+ *       Advanced analytics including:
+ *       - Peak rental hours across all campuses
+ *       - Revenue and rental count per campus
+ *       - Most popular device types
+ *       - Weekly revenue trend for last 7 days
+ *     responses:
+ *       200:
+ *         description: Full analytics breakdown
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 analytics:
+ *                   type: object
+ *                   properties:
+ *                     peakRentalHours:
+ *                       type: array
+ *                       description: Top 5 busiest hours
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           _id:
+ *                             type: number
+ *                             description: Hour of day 0-23
+ *                             example: 14
+ *                           count:
+ *                             type: number
+ *                             example: 145
+ *                     campusPerformance:
+ *                       type: array
+ *                       description: Revenue and rental count per campus
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           _id:
+ *                             type: string
+ *                             example: LASU
+ *                           totalRevenue:
+ *                             type: number
+ *                           totalRentals:
+ *                             type: number
+ *                     devicePopularity:
+ *                       type: array
+ *                       description: Device types ranked by rental count
+ *                     weeklyTrend:
+ *                       type: array
+ *                       description: Daily revenue for last 7 days
+ *       403:
+ *         description: Admin access required
+ */
+router.get(
+  '/analytics',
+  protect,
+  authorize('admin'),
+  getAnalytics
+)
+
+// ─────────────────────────────────────────────────
+// USERS
+// ─────────────────────────────────────────────────
 
 /**
  * @swagger
  * /api/v1/admin/users:
  *   get:
- *     summary: Get all users with optional filters
+ *     summary: Get all users with filters and pagination
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
@@ -54,79 +204,74 @@ router.get('/dashboard', ...adminOnly, getAdminDashboard)
  *         schema:
  *           type: string
  *           enum: [student, operator, admin]
+ *         description: Filter by role
  *       - in: query
  *         name: campus
  *         schema:
  *           type: string
+ *           enum:
+ *             - LASU
+ *             - UI
+ *             - UNILAG
+ *             - OAU
+ *             - FUTA
+ *             - UNIBEN
+ *             - ABU
+ *             - UNN
+ *             - UNIPORT
+ *             - LAUTECH
+ *         description: Filter by campus
  *       - in: query
  *         name: page
  *         schema:
- *           type: number
+ *           type: integer
+ *           default: 1
  *       - in: query
  *         name: limit
  *         schema:
- *           type: number
+ *           type: integer
+ *           default: 20
  *     responses:
  *       200:
- *         description: Paginated users list
+ *         description: Paginated list of users
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 count:
+ *                   type: number
+ *                 total:
+ *                   type: number
+ *                 users:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/User'
  */
-router.get('/users', ...adminOnly, getAllUsers)
+router.get(
+  '/users',
+  protect,
+  authorize('admin'),
+  getAllUsers
+)
 
-/**
- * @swagger
- * /api/v1/admin/users/{id}/deactivate:
- *   patch:
- *     summary: Deactivate a user account
- *     tags: [Admin]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: User deactivated
- *       404:
- *         description: User not found
- */
-router.patch('/users/:id/deactivate', ...adminOnly, deactivateUser)
-
-/**
- * @swagger
- * /api/v1/admin/users/{id}/activate:
- *   patch:
- *     summary: Reactivate a deactivated user account
- *     tags: [Admin]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: User reactivated
- *       404:
- *         description: User not found
- */
-router.patch('/users/:id/activate', ...adminOnly, activateUser)
-
-// ─── Operators ────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────
+// OPERATORS
+// ─────────────────────────────────────────────────
 
 /**
  * @swagger
  * /api/v1/admin/operators:
  *   post:
- *     summary: Create a brand new operator account
+ *     summary: Create a new operator account
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
- *     description: Creates a fresh operator account. To promote an existing user, use PATCH /operators/{id}/onboard instead.
+ *     description: |
+ *       Creates an operator account and assigns them to a station.
+ *       Operators use email + password to login (no OTP).
  *     requestBody:
  *       required: true
  *       content:
@@ -137,10 +282,10 @@ router.patch('/users/:id/activate', ...adminOnly, activateUser)
  *             properties:
  *               name:
  *                 type: string
- *                 example: Chidi Okeke
+ *                 example: John Operator
  *               email:
  *                 type: string
- *                 example: chidi@wakacharge.com
+ *                 example: operator@wakacharge.com
  *               phone:
  *                 type: string
  *                 example: "08087654321"
@@ -149,100 +294,33 @@ router.patch('/users/:id/activate', ...adminOnly, activateUser)
  *                 example: operator123
  *               campus:
  *                 type: string
- *                 example: UNILAG
+ *                 example: LASU
  *               stationId:
  *                 type: string
- *                 example: 64b1f2c3d4e5f6a7b8c9d0e1
- *                 description: Optional — assign to a station immediately
+ *                 description: MongoDB ID of station to assign
+ *                 example: 664f1b2c3d4e5f6a7b8c9d0e
  *     responses:
  *       201:
- *         description: Operator created successfully
+ *         description: Operator created and assigned to station
  *       409:
  *         description: Email or phone already exists
  */
-router.post('/operators', ...adminOnly, createOperator)
+router.post(
+  '/operators',
+  protect,
+  authorize('admin'),
+  createOperator
+)
 
-/**
- * @swagger
- * /api/v1/admin/operators/{id}/onboard:
- *   patch:
- *     summary: Onboard an existing user as an operator
- *     tags: [Admin]
- *     security:
- *       - bearerAuth: []
- *     description: |
- *       Promotes an existing student to operator role.
- *       Optionally assigns them to a station at the same time.
- *       Use this when a user already registered and admin wants to make them an operator.
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: The user's MongoDB _id
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               stationId:
- *                 type: string
- *                 example: 64b1f2c3d4e5f6a7b8c9d0e1
- *                 description: Optional — assign to a station during onboarding
- *     responses:
- *       200:
- *         description: User onboarded as operator successfully
- *       400:
- *         description: User is already an operator or is an admin
- *       404:
- *         description: User or station not found
- */
-router.patch('/operators/:id/onboard', ...adminOnly, onboardOperator)
-
-/**
- * @swagger
- * /api/v1/admin/operators/{id}/reassign:
- *   patch:
- *     summary: Reassign an operator to a different station
- *     tags: [Admin]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [stationId]
- *             properties:
- *               stationId:
- *                 type: string
- *                 example: 64b1f2c3d4e5f6a7b8c9d0e2
- *     responses:
- *       200:
- *         description: Operator reassigned successfully
- *       400:
- *         description: User is not an operator or stationId missing
- *       404:
- *         description: User or station not found
- */
-router.patch('/operators/:id/reassign', ...adminOnly, reassignOperator)
-
-// ─── Rentals ──────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────
+// RENTALS
+// ─────────────────────────────────────────────────
 
 /**
  * @swagger
  * /api/v1/admin/rentals:
  *   get:
- *     summary: Get all rentals across the platform
+ *     summary: Get all rentals across all campuses with filters
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
@@ -252,21 +330,57 @@ router.patch('/operators/:id/reassign', ...adminOnly, reassignOperator)
  *         schema:
  *           type: string
  *           enum: [active, returned, overdue, cancelled]
+ *         description: Filter by rental status
+ *       - in: query
+ *         name: deviceType
+ *         schema:
+ *           type: string
+ *           enum: [powerbank, studylamp, survivalkit, comfortkit]
+ *       - in: query
+ *         name: campus
+ *         schema:
+ *           type: string
  *       - in: query
  *         name: page
  *         schema:
- *           type: number
+ *           type: integer
+ *           default: 1
  *       - in: query
  *         name: limit
  *         schema:
- *           type: number
+ *           type: integer
+ *           default: 20
  *     responses:
  *       200:
- *         description: All rentals paginated
+ *         description: Paginated list of all rentals
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 count:
+ *                   type: number
+ *                 total:
+ *                   type: number
+ *                 page:
+ *                   type: number
+ *                 rentals:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Rental'
  */
-router.get('/rentals', ...adminOnly, getAllRentals)
+router.get(
+  '/rentals',
+  protect,
+  authorize('admin'),
+  getAllRentals
+)
 
-// ─── Revenue ──────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────
+// REVENUE
+// ─────────────────────────────────────────────────
 
 /**
  * @swagger
@@ -283,10 +397,69 @@ router.get('/rentals', ...adminOnly, getAllRentals)
  *           type: string
  *           enum: [7days, 30days, 90days]
  *           default: 7days
+ *         description: Time period for revenue report
  *     responses:
  *       200:
- *         description: Revenue totals and daily breakdown
+ *         description: Revenue data with daily breakdown
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 period:
+ *                   type: string
+ *                   example: 7days
+ *                 totalRevenue:
+ *                   type: number
+ *                   example: 280000
+ *                 dailyRevenue:
+ *                   type: object
+ *                   example:
+ *                     "2026-06-24": 35000
+ *                     "2026-06-25": 42000
+ *                 transactions:
+ *                   type: number
+ *                   example: 145
  */
-router.get('/revenue', ...adminOnly, getRevenue)
+router.get(
+  '/revenue',
+  protect,
+  authorize('admin'),
+  getRevenue
+)
+
+// ─────────────────────────────────────────────────
+// USER MANAGEMENT
+// ─────────────────────────────────────────────────
+
+/**
+ * @swagger
+ * /api/v1/admin/users/{id}/deactivate:
+ *   patch:
+ *     summary: Deactivate a user account
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: MongoDB user ID
+ *     responses:
+ *       200:
+ *         description: User deactivated successfully
+ *       404:
+ *         description: User not found
+ */
+router.patch(
+  '/users/:id/deactivate',
+  protect,
+  authorize('admin'),
+  deactivateUser
+)
 
 module.exports = router

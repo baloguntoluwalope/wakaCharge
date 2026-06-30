@@ -344,6 +344,102 @@ const activateUser = async (req, res) => {
   })
 }
 
+// Add to admin.controller.js
+
+const getAnalytics = async (req, res) => {
+  const [
+    peakHours,
+    campusStats,
+    deviceTypePopularity,
+    weeklyRevenueTrend
+  ] = await Promise.all([
+
+    // Peak rental hours
+    Rental.aggregate([
+      {
+        $group: {
+          _id: { $hour: '$startTime' },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } },
+      { $limit: 5 }
+    ]),
+
+    // Revenue per campus
+    Rental.aggregate([
+      { $match: { status: 'returned' } },
+      {
+        $lookup: {
+          from: 'stations',
+          localField: 'stationId',
+          foreignField: '_id',
+          as: 'station'
+        }
+      },
+      { $unwind: '$station' },
+      {
+        $group: {
+          _id: '$station.campus',
+          totalRevenue: { $sum: '$rentalAmount' },
+          totalRentals: { $sum: 1 }
+        }
+      },
+      { $sort: { totalRevenue: -1 } }
+    ]),
+
+    // Most popular device type
+    Rental.aggregate([
+      {
+        $group: {
+          _id: '$deviceType',
+          count: { $sum: 1 },
+          revenue: { $sum: '$rentalAmount' }
+        }
+      },
+      { $sort: { count: -1 } }
+    ]),
+
+    // Weekly revenue trend last 7 days
+    Transaction.aggregate([
+      {
+        $match: {
+          status: 'success',
+          type: 'rental_payment',
+          createdAt: {
+            $gte: new Date(
+              Date.now() - 7 * 24 * 60 * 60 * 1000
+            )
+          }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              format: '%Y-%m-%d',
+              date: '$createdAt'
+            }
+          },
+          revenue: { $sum: '$amount' },
+          transactions: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ])
+  ])
+
+  res.status(200).json({
+    success: true,
+    analytics: {
+      peakRentalHours: peakHours,
+      campusPerformance: campusStats,
+      devicePopularity: deviceTypePopularity,
+      weeklyTrend: weeklyRevenueTrend
+    }
+  })
+}
+
 module.exports = {
   getAdminDashboard,
   getAllUsers,
@@ -353,5 +449,6 @@ module.exports = {
   getAllRentals,
   getRevenue,
   deactivateUser,
-  activateUser
+  activateUser,
+  getAnalytics
 }
