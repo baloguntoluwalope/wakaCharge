@@ -6,6 +6,10 @@ const {
   completeRegistration,
   loginStudent,
   resendOTP,
+  forgotPassword,
+  verifyResetOTP,
+  resetPassword,
+  changePassword,
   registerAdmin,
   loginAdmin,
   loginOperator,
@@ -28,8 +32,10 @@ const { protect } = require('../middleware/auth.middleware')
  *     2. POST /verify-otp — verify OTP
  *     3. POST /complete-registration — create account (studentId required)
  *
- *     ### Student Login
- *     POST /login — email + password
+ *     ### Password Reset Flow
+ *     1. POST /forgot-password — send reset OTP to email
+ *     2. POST /verify-reset-otp — verify OTP
+ *     3. POST /reset-password — set new password
  */
 
 // ─── Student Registration ─────────────────────────────────────────────────────
@@ -95,8 +101,7 @@ router.post('/verify-otp', verifyRegistrationOTP)
  *     tags: [Authentication]
  *     description: |
  *       Creates the student account after OTP verification.
- *       studentId is compulsory for students.
- *       Nomba virtual account is provisioned automatically.
+ *       studentId is compulsory. Nomba virtual account provisioned automatically.
  *     requestBody:
  *       required: true
  *       content:
@@ -123,7 +128,6 @@ router.post('/verify-otp', verifyRegistrationOTP)
  *               studentId:
  *                 type: string
  *                 example: LSC/2021/001
- *                 description: Compulsory for student accounts
  *     responses:
  *       201:
  *         description: Account created. Virtual account provisioned. Welcome email sent.
@@ -193,6 +197,102 @@ router.post('/resend-otp', resendOTP)
  */
 router.post('/login', loginStudent)
 
+// ─── Password Reset ───────────────────────────────────────────────────────────
+
+/**
+ * @swagger
+ * /api/v1/auth/forgot-password:
+ *   post:
+ *     summary: "Reset Step 1 — Send password reset OTP"
+ *     tags: [Authentication]
+ *     description: |
+ *       Sends a 6-digit reset code to the registered email.
+ *       Always returns 200 regardless of whether the email exists — prevents user enumeration.
+ *       Rate limited to once per 60 seconds.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: tolu@lasu.edu.ng
+ *     responses:
+ *       200:
+ *         description: Reset code sent if email is registered
+ *       429:
+ *         description: Please wait before requesting another code
+ */
+router.post('/forgot-password', forgotPassword)
+
+/**
+ * @swagger
+ * /api/v1/auth/verify-reset-otp:
+ *   post:
+ *     summary: "Reset Step 2 — Verify reset OTP"
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, otp]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: tolu@lasu.edu.ng
+ *               otp:
+ *                 type: string
+ *                 example: "739201"
+ *     responses:
+ *       200:
+ *         description: OTP verified. Proceed to set new password.
+ *       400:
+ *         description: Invalid or expired OTP
+ */
+router.post('/verify-reset-otp', verifyResetOTP)
+
+/**
+ * @swagger
+ * /api/v1/auth/reset-password:
+ *   post:
+ *     summary: "Reset Step 3 — Set new password"
+ *     tags: [Authentication]
+ *     description: |
+ *       Sets a new password after OTP verification.
+ *       Requires the same email and OTP from step 2 — prevents skipping the verification step.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, otp, newPassword]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: tolu@lasu.edu.ng
+ *               otp:
+ *                 type: string
+ *                 example: "739201"
+ *               newPassword:
+ *                 type: string
+ *                 example: myNewSecurePassword123
+ *                 description: Minimum 6 characters
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ *       400:
+ *         description: OTP not verified or missing fields
+ *       404:
+ *         description: User not found
+ */
+router.post('/reset-password', resetPassword)
+
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 /**
@@ -201,7 +301,7 @@ router.post('/login', loginStudent)
  *   post:
  *     summary: Register admin — requires adminSecret
  *     tags: [Authentication]
- *     description: Admin accounts get a Nomba virtual account and welcome email. Operators are onboarded by admin, not self-registered.
+ *     description: Admin accounts get a Nomba virtual account and welcome email.
  *     requestBody:
  *       required: true
  *       content:
@@ -346,6 +446,40 @@ router.get('/profile', protect, getProfile)
  *         description: Phone already in use
  */
 router.put('/profile', protect, updateProfile)
+
+/**
+ * @swagger
+ * /api/v1/auth/change-password:
+ *   put:
+ *     summary: Change password — requires current password (authenticated)
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     description: For logged-in users who know their current password. For forgotten passwords use the reset flow instead.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [currentPassword, newPassword]
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *                 example: oldPassword123
+ *               newPassword:
+ *                 type: string
+ *                 example: newSecurePassword456
+ *                 description: Minimum 6 characters
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *       401:
+ *         description: Current password is incorrect
+ *       400:
+ *         description: Missing fields or password too short
+ */
+router.put('/change-password', protect, changePassword)
 
 /**
  * @swagger

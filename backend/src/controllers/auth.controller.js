@@ -5,8 +5,14 @@ const User = require('../models/User')
 const OTP = require('../models/OTP')
 const { createAndSendOTP, verifyOTP } = require('../services/otp.service')
 const { createVirtualAccount } = require('../services/nomba.service')
-const { sendWelcomeEmail, sendLoginEmail } = require('../utils/email.util')
+const {
+  sendWelcomeEmail,
+  sendLoginEmail,
+  sendPasswordResetEmail
+} = require('../utils/email.util')
 const { getTrustSummary } = require('../services/trustscore.service')
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const generateToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -33,8 +39,6 @@ const userResponse = (user) => ({
   lastLogin: user.lastLogin,
   createdAt: user.createdAt
 })
-
-// ─── VA helper — shared by student and admin register ────────────────────────
 
 const provisionVirtualAccount = async (user) => {
   try {
@@ -157,9 +161,7 @@ const completeRegistration = async (req, res) => {
   })
 
   await provisionVirtualAccount(user)
-
   await OTP.deleteOne({ _id: otpRecord._id })
-
   await sendWelcomeEmail(
     user.email, user.name,
     user.virtualAccountNumber,
@@ -174,7 +176,7 @@ const completeRegistration = async (req, res) => {
   })
 }
 
-// ─── STUDENT LOGIN — email + password ────────────────────────────────────────
+// ─── STUDENT LOGIN ────────────────────────────────────────────────────────────
 
 const loginStudent = async (req, res) => {
   const { email, password } = req.body
@@ -207,7 +209,6 @@ const loginStudent = async (req, res) => {
 
   user.lastLogin = new Date()
   await user.save({ validateBeforeSave: false })
-
   await sendLoginEmail(user.email, user.name)
 
   res.status(200).json({
@@ -218,7 +219,7 @@ const loginStudent = async (req, res) => {
   })
 }
 
-// ─── RESEND OTP (registration only) ──────────────────────────────────────────
+// ─── RESEND OTP ───────────────────────────────────────────────────────────────
 
 const resendOTP = async (req, res) => {
   const { email, type } = req.body
@@ -251,6 +252,140 @@ const resendOTP = async (req, res) => {
     success: true,
     message: result.message,
     expiresAt: result.expiresAt
+  })
+}
+
+// ─── PASSWORD RESET — STEP 1: Request OTP ────────────────────────────────────
+
+const forgotPassword = async (req, res) => {
+  const { email } = req.body
+
+  if (!email) {
+    return res.status(400).json({
+      success: false,
+      message: 'Please provide your email address'
+    })
+  }
+
+  // Always respond with 200 — don't reveal if email exists or not
+  const user = await User.findOne({ email: email.toLowerCase().trim() })
+  if (!user) {
+    return res.status(200).json({
+      success: true,
+      message: 'If this email is registered, you will receive a reset code shortly.'
+    })
+  }
+
+  if (!user.isActive) {
+    return res.status(401).json({
+      success: false,
+      message: 'Your account has been deactivated. Contact support.'
+    })
+  }
+
+  // Rate limit — check last reset OTP
+  const lastOTP = await OTP.findOne({
+    email: email.toLowerCase().trim(),
+    type: 'reset'
+  }).sort({ createdAt: -1 })
+
+  if (lastOTP) {
+    const secondsSinceLast = (Date.now() - new Date(lastOTP.createdAt).getTime()) / 1000
+    if (secondsSinceLast < 60) {
+      return res.status(429).json({
+        success: false,
+        message: `Please wait ${Math.ceil(60 - secondsSinceLast)} seconds before requesting a new code`
+      })
+    }
+  }
+
+  const result = await createAndSendOTP(email.toLowerCase().trim(), 'reset')
+
+  await sendPasswordResetEmail(user.email, user.name, result.otp)
+
+  res.status(200).json({
+    success: true,
+    message: 'If this email is registered, you will receive a reset code shortly.',
+    expiresAt: result.expiresAt
+  })
+}
+
+// ─── PASSWORD RESET — STEP 2: Verify OTP ─────────────────────────────────────
+
+const verifyResetOTP = async (req, res) => {
+  const { email, otp } = req.body
+
+  if (!email || !otp) {
+    return res.status(400).json({
+      success: false,
+      message: 'Please provide email and OTP'
+    })
+  }
+
+  const result = await verifyOTP(
+    email.toLowerCase().trim(), otp.trim(), 'reset'
+  )
+
+  if (!result.valid) {
+    return res.status(400).json({ success: false, message: result.message })
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'OTP verified. You can now set a new password.',
+    email: email.toLowerCase().trim(),
+    nextStep: 'Set new password at POST /api/v1/auth/reset-password'
+  })
+}
+
+// ─── PASSWORD RESET — STEP 3: Set new password ───────────────────────────────
+
+const resetPassword = async (req, res) => {
+  const { email, otp, newPassword } = req.body
+
+  if (!email || !otp || !newPassword) {
+    return res.status(400).json({
+      success: false,
+      message: 'Please provide email, OTP and new password'
+    })
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({
+      success: false,
+      message: 'Password must be at least 6 characters'
+    })
+  }
+
+  // Re-verify OTP before resetting (prevent skipping step 2)
+  const otpRecord = await OTP.findOne({
+    email: email.toLowerCase().trim(),
+    type: 'reset',
+    isVerified: true
+  })
+
+  if (!otpRecord) {
+    return res.status(400).json({
+      success: false,
+      message: 'OTP not verified. Please verify your reset code first.'
+    })
+  }
+
+  const user = await User.findOne({ email: email.toLowerCase().trim() })
+  if (!user) {
+    return res.status(404).json({ success: false, message: 'User not found' })
+  }
+
+  // Update password — the User model pre-save hook will hash it
+  user.password = newPassword
+  await user.save()
+
+  // Clean up used OTP
+  await OTP.deleteOne({ _id: otpRecord._id })
+
+  res.status(200).json({
+    success: true,
+    message: 'Password reset successfully. You can now log in with your new password.'
   })
 }
 
@@ -293,7 +428,6 @@ const registerAdmin = async (req, res) => {
   })
 
   await provisionVirtualAccount(user)
-
   await sendWelcomeEmail(
     user.email, user.name,
     user.virtualAccountNumber,
@@ -417,6 +551,47 @@ const updateProfile = async (req, res) => {
   })
 }
 
+// ─── CHANGE PASSWORD (authenticated) ─────────────────────────────────────────
+
+const changePassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.body
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({
+      success: false,
+      message: 'Please provide current and new password'
+    })
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({
+      success: false,
+      message: 'New password must be at least 6 characters'
+    })
+  }
+
+  const user = await User.findById(req.user._id).select('+password')
+  if (!user) {
+    return res.status(404).json({ success: false, message: 'User not found' })
+  }
+
+  const isMatch = await user.comparePassword(currentPassword)
+  if (!isMatch) {
+    return res.status(401).json({
+      success: false,
+      message: 'Current password is incorrect'
+    })
+  }
+
+  user.password = newPassword
+  await user.save()
+
+  res.status(200).json({
+    success: true,
+    message: 'Password changed successfully'
+  })
+}
+
 // ─── LOGOUT ───────────────────────────────────────────────────────────────────
 
 const logout = async (req, res) => {
@@ -429,6 +604,10 @@ module.exports = {
   completeRegistration,
   loginStudent,
   resendOTP,
+  forgotPassword,
+  verifyResetOTP,
+  resetPassword,
+  changePassword,
   registerAdmin,
   loginAdmin,
   loginOperator,

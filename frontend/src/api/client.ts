@@ -30,6 +30,25 @@ class ApiClient {
             window.location.href = '/login'
           }
         }
+        
+        // Handle 404 errors
+        if (error.response?.status === 404) {
+          console.warn('Resource not found:', error.config?.url)
+          error.message = 'Resource not found'
+        }
+        
+        // Handle 5xx errors (server issues)
+        if (error.response?.status && error.response.status >= 500) {
+          console.error('Server error:', error.config?.url, error.response.status)
+          error.message = 'Server error. Please try again later.'
+        }
+        
+        // Handle network/timeout errors
+        if (!error.response) {
+          console.error('Network error or timeout')
+          error.message = 'Connection failed. Please check your internet.'
+        }
+        
         return Promise.reject(error)
       }
     )

@@ -991,6 +991,10 @@ const sendDepositRefundedEmail = async (
   }
 }
 
+const sendPasswordResetEmail = async (email, name, otp) => {
+  return await sendOTPEmail(email, otp, 'reset')
+}
+
 // ─────────────────────────────────────────────────
 // Login Notification Email
 // ─────────────────────────────────────────────────
@@ -1022,5 +1026,6 @@ module.exports = {
   sendWalletFundedEmail,
   sendRentalStartedEmail,
   sendDepositRefundedEmail,
-  sendLoginEmail
+  sendLoginEmail,
+  sendPasswordResetEmail
 }
