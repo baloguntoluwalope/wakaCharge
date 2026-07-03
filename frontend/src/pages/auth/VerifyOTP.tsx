@@ -2,11 +2,22 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
+import {
+  MdEmail, MdRefresh, MdCheckCircle, MdArrowBack
+} from 'react-icons/md'
 import { authApi } from '../../api/auth.api'
-import { OTPInput } from '../../components/ui/Input'
-import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { maskEmail } from '../../utils'
+// Add to top of EmailEntry, VerifyOTP, CompleteProfile:
+import {
+  AuthShell,
+  AuthField,
+  AuthButton,
+  SecurityNote,
+  AuthFooter,
+  authInput
+} from '../../components/auth/AuthShell'
+
 
 export default function VerifyOTP() {
   const navigate = useNavigate()
@@ -16,13 +27,15 @@ export default function VerifyOTP() {
   const email = location.state?.email as string
   const type = (location.state?.type || 'registration') as string
 
-  const [otp, setOtp] = useState('')
+  const [otp, setOtp] = useState(['', '', '', '', '', ''])
   const [cooldown, setCooldown] = useState(60)
-  const [otpError, setOtpError] = useState('')
+  const [error, setError] = useState('')
+  const refs = Array.from({ length: 6 }, () => useRef<HTMLInputElement>(null))
 
   useEffect(() => {
     if (!email) navigate('/register')
-  }, [email, navigate])
+    refs[0].current?.focus()
+  }, [])
 
   useEffect(() => {
     if (cooldown <= 0) return
@@ -31,120 +44,149 @@ export default function VerifyOTP() {
   }, [cooldown])
 
   const { mutate: verify, isPending } = useMutation({
-    mutationFn: () => {
-      if (type === 'registration') return authApi.verifyOTP(email, otp)
-      return authApi.verifyOTP(email, otp)
-    },
+    mutationFn: () => authApi.verifyOTP(email, otp.join('')),
     onSuccess: () => {
       if (type === 'registration') {
-        navigate('/complete-profile', { state: { email } })
-      } else {
-        // For login OTP (if implemented)
         navigate('/complete-profile', { state: { email } })
       }
     },
     onError: (err: any) => {
-      setOtpError(err.response?.data?.message || 'Invalid code')
-    }
+      setError(err.response?.data?.message || 'Invalid code. Please try again.')
+      setOtp(['', '', '', '', '', ''])
+      refs[0].current?.focus()
+    },
   })
 
   const { mutate: resend, isPending: resending } = useMutation({
     mutationFn: () => authApi.resendOTP(email, type),
     onSuccess: () => {
       setCooldown(60)
-      setOtp('')
-      setOtpError('')
+      setOtp(['', '', '', '', '', ''])
+      setError('')
       toast('New code sent to your email', 'success')
     },
-    onError: (err: any) => {
-      toast(err.response?.data?.message || 'Could not resend', 'error')
-    }
+    onError: (err: any) =>
+      toast(err.response?.data?.message || 'Could not resend', 'error'),
   })
 
-  const handleVerify = () => {
-    if (otp.length !== 6) { setOtpError('Enter all 6 digits'); return }
-    setOtpError('')
-    verify()
+  const handleChange = (i: number, val: string) => {
+    const clean = val.replace(/\D/g, '').slice(-1)
+    const next = [...otp]
+    next[i] = clean
+    setOtp(next)
+    setError('')
+    if (clean && i < 5) refs[i + 1].current?.focus()
+    if (i === 5 && clean) {
+      // Auto-submit on last digit
+      const code = [...next].join('')
+      if (code.length === 6) setTimeout(() => verify(), 100)
+    }
   }
 
-  useEffect(() => {
-    if (otp.length === 6) {
-      setOtpError('')
-      verify()
+  const handleKeyDown = (i: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !otp[i] && i > 0) {
+      refs[i - 1].current?.focus()
     }
-  }, [otp])
+  }
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault()
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (pasted.length === 6) {
+      const arr = pasted.split('')
+      setOtp(arr)
+      refs[5].current?.focus()
+      setTimeout(() => verify(), 100)
+    }
+  }
 
   return (
-    <div className="min-h-svh bg-white flex flex-col">
-      <div className="px-6 pt-16 pb-8">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <button
-            onClick={() => navigate(-1)}
-            className="w-9 h-9 rounded-2xl bg-slate-100 flex items-center justify-center text-navy-700 mb-8"
-          >
-            ←
-          </button>
-          <p className="text-xs font-bold uppercase tracking-widest text-green-600 mb-2">
-            Step 2 of 3
-          </p>
-          <h1 className="text-3xl font-black text-navy-900 leading-tight mb-3">
-            Enter your code
-          </h1>
-          <p className="text-slate-500 text-sm">
-            Sent to <strong className="text-navy-800">{maskEmail(email || '')}</strong>
-          </p>
-        </motion.div>
+    <AuthShell
+      step={2}
+      title="Check your email"
+      subtitle={`We sent a 6-digit code to ${maskEmail(email || '')}`}
+    >
+      {/* Email pill */}
+      <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 mb-6">
+        <div className="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+          <MdEmail size={16} className="text-green-600" />
+        </div>
+        <div>
+          <p className="text-xs text-slate-400 font-medium">Code sent to</p>
+          <p className="text-sm font-bold text-navy-900">{email}</p>
+        </div>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        className="flex-1 px-6 flex flex-col gap-8"
-      >
-        <OTPInput
-          length={6}
-          value={otp}
-          onChange={setOtp}
-          error={otpError}
-        />
+      {/* OTP boxes */}
+      <div className="flex gap-2.5 justify-center mb-4" onPaste={handlePaste}>
+        {otp.map((d, i) => (
+          <motion.input
+            key={i}
+            ref={refs[i]}
+            value={d}
+            onChange={e => handleChange(i, e.target.value)}
+            onKeyDown={e => handleKeyDown(i, e)}
+            maxLength={1}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            whileFocus={{ scale: 1.05 }}
+            className={`
+              w-12 h-14 text-center text-xl font-black rounded-2xl
+              border-2 transition-all duration-150 outline-none
+              ${error
+                ? 'border-red-400 bg-red-50 text-red-600'
+                : d
+                ? 'border-green-500 bg-green-50 text-navy-900'
+                : 'border-slate-200 bg-white text-navy-900 focus:border-green-400 focus:bg-green-50/50'
+              }
+            `}
+          />
+        ))}
+      </div>
 
-        <Button
-          variant="primary"
-          size="lg"
-          fullWidth
-          loading={isPending}
-          onClick={handleVerify}
+      {/* Error */}
+      {error && (
+        <motion.p
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-red-500 text-sm font-medium text-center mb-4"
         >
-          Verify code
-        </Button>
+          {error}
+        </motion.p>
+      )}
 
-        <div className="text-center">
-          {cooldown > 0 ? (
-            <p className="text-sm text-slate-400">
-              Resend code in <span className="font-semibold text-navy-700">{cooldown}s</span>
-            </p>
-          ) : (
-            <button
-              onClick={() => resend()}
-              disabled={resending}
-              className="text-sm font-semibold text-green-600 hover:text-green-700"
-            >
-              {resending ? 'Sending…' : 'Resend code'}
-            </button>
-          )}
-        </div>
+      {/* Verify button */}
+      <AuthButton
+        loading={isPending}
+        disabled={otp.join('').length !== 6}
+        onClick={() => verify()}
+      >
+        {isPending ? 'Verifying…' : 'Verify code'}
+      </AuthButton>
 
-        <div className="bg-slate-50 rounded-2xl p-4">
-          <p className="text-xs text-slate-400 text-center">
-            Check your spam folder if you don't see it within a minute.
-            The code expires in 5 minutes.
+      {/* Resend */}
+      <div className="flex items-center justify-center mt-5">
+        {cooldown > 0 ? (
+          <p className="text-sm text-slate-400">
+            Resend code in{' '}
+            <span className="font-bold text-navy-700 tabular-nums">{cooldown}s</span>
           </p>
-        </div>
-      </motion.div>
-    </div>
+        ) : (
+          <button
+            onClick={() => resend()}
+            disabled={resending}
+            className="flex items-center gap-1.5 text-sm font-semibold text-green-600 hover:text-green-700 transition-colors"
+          >
+            <MdRefresh size={16} className={resending ? 'animate-spin' : ''} />
+            {resending ? 'Sending…' : 'Resend code'}
+          </button>
+        )}
+      </div>
+
+      <SecurityNote text="Code expires in 5 minutes. Never share it with anyone." />
+    </AuthShell>
   )
 }
+
+// Fix: useRef needs to be imported
+import { useRef } from 'react'

@@ -9,5 +9,5 @@ export default defineConfig({
     tailwindcss(), // 2. Moved inside the plugins array,
     // base: "https://github.com/baloguntoluwalope/wakaCharge"
   ],
-  base: "https://github.com/baloguntoluwalope/wakaCharge"
+  // base: "https://github.com/baloguntoluwalope/wakaCharge"
 })

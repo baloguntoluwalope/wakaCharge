@@ -3,10 +3,18 @@ import { Outlet } from 'react-router-dom'
 
 export const OperatorLayout = () => {
   return (
-    <div className="app-shell bg-slate-50">
-      <div className="flex-1 overflow-y-auto">
-        <Outlet />
-      </div>
+    <div
+      className="operator-layout"
+      style={{
+        height: '100%',
+        minHeight: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        background: '#f8fafc',
+        overflow: 'hidden'
+      }}
+    >
+      <Outlet />
     </div>
   )
 }

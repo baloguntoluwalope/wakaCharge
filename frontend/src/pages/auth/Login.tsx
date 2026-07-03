@@ -1,356 +1,183 @@
-import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
-import { HiMail, HiLockClosed, HiArrowRight, HiLightningBolt } from 'react-icons/hi'
+import { MdEmail, MdLock, MdArrowForward } from 'react-icons/md'
 import { authApi } from '../../api/auth.api'
 import { useToast } from '../../components/ui/Toast'
 import { useAuth } from '../../context/AuthContext'
-import wakaLogo from '../../assets/waka-logo.png'
+import { AuthField, AuthButton, authInput } from '../../components/auth/AuthShell'
 
 const schema = z.object({
   email: z.string().email('Valid email required'),
   password: z.string().min(1, 'Password required'),
 })
-
-type FormData = z.infer<typeof schema>
-
-const inputStyle = (hasError: boolean): React.CSSProperties => ({
-  width: '100%',
-  padding: '13px 14px 13px 40px',
-  borderRadius: 12,
-  border: `1.5px solid ${hasError ? '#ef4444' : '#e2e8f0'}`,
-  fontSize: 14,
-  color: '#0f172a',
-  background: '#f8fafc',
-  outline: 'none',
-  transition: 'border-color 0.15s, box-shadow 0.15s',
-  fontFamily: 'inherit'
-})
+type Form = z.infer<typeof schema>
 
 export default function Login() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { login } = useAuth()
-  const [loginError, setLoginError] = useState<string | null>(null)
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema)
+  const { register, handleSubmit, formState: { errors } } = useForm<Form>({
+    resolver: zodResolver(schema),
   })
 
-  const { onBlur: emailOnBlur, ...emailRegister } = register('email')
-  const { onBlur: passwordOnBlur, ...passwordRegister } = register('password')
-
   const { mutate, isPending } = useMutation({
-    mutationFn: (data: FormData) => authApi.login(data.email, data.password),
+    mutationFn: (d: Form) => authApi.login(d.email, d.password),
     onSuccess: (res: any) => {
-      setLoginError(null)
       login(res.token, res.user)
       navigate('/dashboard')
     },
-    onError: (err: any) => {
-      const errorMessage = err.response?.data?.message || 'Invalid credentials'
-      setLoginError(errorMessage)
-      toast(errorMessage, 'error')
-    }
+    onError: (err: any) =>
+      toast(err.response?.data?.message || 'Invalid email or password', 'error'),
   })
 
   return (
-    <div
-      className="min-h-svh flex flex-col"
-      style={{ background: 'linear-gradient(160deg, #f0fdf4 0%, #f8fafc 50%, #f0fdf4 100%)' }}
-    >
-      {/* Background pattern */}
+    <div className="min-h-screen bg-white flex flex-col lg:flex-row">
+
+      {/* ── Left panel (desktop) ─────────────────── */}
       <div
-        className="fixed inset-0 pointer-events-none"
-        style={{
-          backgroundImage: 'radial-gradient(circle, rgba(34,197,94,0.06) 1px, transparent 1px)',
-          backgroundSize: '28px 28px'
-        }}
-      />
-
-      {/* Top accent */}
-      <div
-        className="fixed top-0 left-0 right-0 h-1 pointer-events-none"
-        style={{ background: 'linear-gradient(90deg, #16a34a, #22c55e, #4ade80, #22c55e, #16a34a)' }}
-      />
-
-      <div className="relative flex-1 flex flex-col px-6 pt-14 pb-8 max-w-sm mx-auto w-full">
-
+        className="hidden lg:flex flex-col justify-between w-2/5 xl:w-1/2 p-12 xl:p-16"
+        style={{ background: 'linear-gradient(160deg, #060b12 0%, #0b1420 60%, #0f2318 100%)' }}
+      >
         {/* Logo */}
-        <motion.div
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          className="flex flex-col items-center mb-8"
-        >
-          <div
-            className="rounded-3xl overflow-hidden mb-4 flex items-center justify-center"
-            style={{
-              width: 90,
-              height: 90,
-              background: '#fff',
-              boxShadow: '0 8px 32px rgba(34,197,94,0.2), 0 2px 8px rgba(0,0,0,0.08)',
-              padding: 10
-            }}
-          >
-            <img
-              src={wakaLogo}
-              alt="Waka Logo"
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-            />
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-green-500 flex items-center justify-center">
+            <span className="text-white text-lg font-black">W</span>
           </div>
-          <div className="text-center">
-            <p
-              className="font-black tracking-tight"
-              style={{ fontSize: 22, color: '#14532d', letterSpacing: '-0.02em' }}
-            >
-              WAKA<span style={{ color: '#22c55e' }}>Charge</span>
-            </p>
-            <p style={{ fontSize: 11, color: '#86efac', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 2 }}>
-              Wallet · Access · Kiosk · Alliance
-            </p>
-          </div>
-        </motion.div>
+          <span className="font-black text-white text-xl tracking-tight">
+            Waka<span className="text-green-400">Charge</span>
+          </span>
+        </div>
 
-        {/* Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          style={{
-            background: '#fff',
-            borderRadius: 24,
-            padding: '32px 28px',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04)',
-            border: '1px solid rgba(34,197,94,0.12)'
-          }}
-        >
-          {/* Heading */}
-          <div className="mb-7">
-            <h1 style={{ fontSize: 24, fontWeight: 900, color: '#0f172a', marginBottom: 4, lineHeight: 1.2 }}>
-              Welcome back 👋
-            </h1>
-            <p style={{ fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>
-              Sign in to your student account
-            </p>
-            {loginError && (
-              <div style={{ marginTop: 16, padding: '12px 14px', borderRadius: 14, background: '#fee2e2', color: '#991b1b', fontSize: 13, fontWeight: 600 }}>
-                {loginError}
+        {/* Quote */}
+        <div>
+          <p className="text-5xl font-black text-white leading-tight mb-6">
+            Power to learn.<br />
+            <span className="text-green-400">Credit to grow.</span>
+          </p>
+          <p className="text-white/40 text-base leading-relaxed max-w-sm">
+            Every return builds your trust score. Reach 10 successful rentals
+            and unlock Rent Now, Pay Later — your campus credit line.
+          </p>
+
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-4 mt-10 pt-10 border-t border-white/10">
+            {[
+              { n: '10+', label: 'Campuses' },
+              { n: '₦300', label: 'From per session' },
+              { n: '100%', label: 'Deposit refunded' },
+            ].map(s => (
+              <div key={s.label}>
+                <p className="text-2xl font-black text-white">{s.n}</p>
+                <p className="text-xs text-white/40 mt-0.5">{s.label}</p>
               </div>
-            )}
+            ))}
+          </div>
+        </div>
+
+        <p className="text-white/20 text-xs">© 2026 Waka Charge · Powered by Nomba</p>
+      </div>
+
+      {/* ── Right panel ──────────────────────────── */}
+      <div className="flex-1 flex flex-col justify-center px-6 py-10 lg:px-12 xl:px-20">
+
+        {/* Mobile logo */}
+        <div className="flex items-center gap-2 mb-10 lg:hidden">
+          <div className="w-9 h-9 rounded-xl bg-green-500 flex items-center justify-center">
+            <span className="text-white font-black text-sm">W</span>
+          </div>
+          <span className="font-black text-navy-900 text-lg">
+            Waka<span className="text-green-500">Charge</span>
+          </span>
+        </div>
+
+        <div className="max-w-sm w-full mx-auto lg:mx-0">
+          <div className="mb-8">
+            <p className="text-xs font-bold uppercase tracking-widest text-green-600 mb-2">
+              Student portal
+            </p>
+            <h1 className="text-3xl font-black text-navy-900 mb-2">Welcome back</h1>
+            <p className="text-slate-500 text-sm">Sign in to your student account</p>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit(data => mutate(data))} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit(d => mutate(d))} className="flex flex-col gap-4">
+            <AuthField label="Email address" icon={<MdEmail size={18} />} error={errors.email?.message}>
+              <input
+                type="email"
+                autoFocus
+                autoComplete="email"
+                placeholder="you@lasu.edu.ng"
+                className={authInput(!!errors.email)}
+                {...register('email')}
+              />
+            </AuthField>
 
-            {/* Email */}
-            <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6, letterSpacing: '0.02em' }}>
-                Email address
-              </label>
-              <div style={{ position: 'relative' }}>
-                <HiMail
-                  size={15}
-                  style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }}
-                />
-                <input
-                  type="email"
-                  placeholder="you@lasu.edu.ng"
-                  style={inputStyle(!!errors.email)}
-                  onFocus={e => {
-                    setLoginError(null)
-                    if (!errors.email) {
-                      e.target.style.borderColor = '#22c55e'
-                      e.target.style.boxShadow = '0 0 0 3px rgba(34,197,94,0.1)'
-                    }
-                  }}
-                  onBlur={e => {
-                    emailOnBlur(e)
-                    if (!errors.email) {
-                      e.target.style.borderColor = '#e2e8f0'
-                      e.target.style.boxShadow = 'none'
-                    }
-                  }}
-                  autoFocus
-                  {...emailRegister}
-                />
-              </div>
-              {errors.email && (
-                <p style={{ fontSize: 11, color: '#ef4444', marginTop: 5, fontWeight: 600 }}>
-                  {errors.email.message}
-                </p>
-              )}
-            </div>
+            <AuthField label="Password" icon={<MdLock size={18} />} error={errors.password?.message}>
+              <input
+                type="password"
+                autoComplete="current-password"
+                placeholder="Your password"
+                className={authInput(!!errors.password)}
+                {...register('password')}
+              />
+            </AuthField>
 
-            {/* Password */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', letterSpacing: '0.02em' }}>
-                  Password
-                </label>
-                <button
-                  type="button"
-                  style={{ fontSize: 11, color: '#22c55e', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                >
-                  Forgot password?
-                </button>
-              </div>
-              <div style={{ position: 'relative' }}>
-                <HiLockClosed
-                  size={15}
-                  style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }}
-                />
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  style={inputStyle(!!errors.password)}
-                  onFocus={e => {
-                    setLoginError(null)
-                    if (!errors.password) {
-                      e.target.style.borderColor = '#22c55e'
-                      e.target.style.boxShadow = '0 0 0 3px rgba(34,197,94,0.1)'
-                    }
-                  }}
-                  onBlur={e => {
-                    passwordOnBlur(e)
-                    if (!errors.password) {
-                      e.target.style.borderColor = '#e2e8f0'
-                      e.target.style.boxShadow = 'none'
-                    }
-                  }}
-                  {...passwordRegister}
-                />
-              </div>
-              {errors.password && (
-                <p style={{ fontSize: 11, color: '#ef4444', marginTop: 5, fontWeight: 600 }}>
-                  {errors.password.message}
-                </p>
-              )}
-            </div>
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isPending}
-              className="flex items-center justify-center gap-2 font-bold transition-all group"
-              style={{
-                marginTop: 4,
-                padding: '14px',
-                borderRadius: 12,
-                background: isPending ? '#86efac' : '#22c55e',
-                color: '#fff',
-                fontSize: 14,
-                border: 'none',
-                cursor: isPending ? 'not-allowed' : 'pointer',
-                boxShadow: '0 4px 16px rgba(34,197,94,0.3)',
-                transition: 'all 0.15s'
-              }}
-              onMouseEnter={e => { if (!isPending) e.currentTarget.style.background = '#16a34a' }}
-              onMouseLeave={e => { if (!isPending) e.currentTarget.style.background = '#22c55e' }}
-            >
-              {isPending ? (
-                <>
-                  <div
-                    className="animate-spin rounded-full border-2 border-white border-t-transparent"
-                    style={{ width: 16, height: 16 }}
-                  />
-                  Signing in...
-                </>
-              ) : (
-                <>
-                  Sign in
-                  <HiArrowRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
-                </>
-              )}
-            </button>
+            <AuthButton loading={isPending} className="mt-2">
+              Sign in to account
+            </AuthButton>
           </form>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-5">
-            <div style={{ flex: 1, height: 1, background: '#f1f5f9' }} />
-            <span style={{ fontSize: 11, color: '#cbd5e1', fontWeight: 600 }}>Other portals</span>
-            <div style={{ flex: 1, height: 1, background: '#f1f5f9' }} />
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-100" />
+            </div>
+            <div className="relative flex justify-center">
+              <span className="bg-white px-3 text-xs text-slate-400 font-medium">
+                other portals
+              </span>
+            </div>
           </div>
 
-          {/* Other logins */}
-          <div className="flex flex-col gap-2.5">
+          <div className="flex flex-col gap-2">
             <button
               onClick={() => navigate('/operator-login')}
-              className="flex items-center justify-center gap-2 font-semibold transition-all"
-              style={{
-                padding: '12px',
-                borderRadius: 12,
-                border: '1.5px solid #e2e8f0',
-                background: '#fff',
-                color: '#475569',
-                fontSize: 13,
-                cursor: 'pointer'
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#22c55e'; e.currentTarget.style.color = '#16a34a' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#475569' }}
+              className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
             >
-              <HiLightningBolt size={14} style={{ color: '#f59e0b' }} />
-              Operator login
+              <span className="flex items-center gap-2">
+                <span className="text-lg">🏪</span>
+                Operator login
+              </span>
+              <MdArrowForward size={16} className="text-slate-400" />
             </button>
             <button
               onClick={() => navigate('/admin-login')}
-              className="flex items-center justify-center gap-2 font-semibold transition-all"
-              style={{
-                padding: '12px',
-                borderRadius: 12,
-                border: '1.5px solid #e2e8f0',
-                background: '#fff',
-                color: '#475569',
-                fontSize: 13,
-                cursor: 'pointer'
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#8b5cf6'; e.currentTarget.style.color = '#7c3aed' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#475569' }}
+              className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
             >
-              <HiLightningBolt size={14} style={{ color: '#8b5cf6' }} />
-              Admin console
+              <span className="flex items-center gap-2">
+                <span className="text-lg">⚙️</span>
+                Admin console
+              </span>
+              <MdArrowForward size={16} className="text-slate-400" />
             </button>
           </div>
-        </motion.div>
 
-        {/* Register link */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.35 }}
-          className="text-center mt-6"
-          style={{ fontSize: 13, color: '#94a3b8' }}
-        >
-          New to Waka?{' '}
-          <button
-            onClick={() => navigate('/register')}
-            style={{ color: '#16a34a', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-          >
-            Create an account
-          </button>
-        </motion.p>
-
-        {/* Footer */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="text-center mt-auto pt-8"
-          style={{ fontSize: 11, color: '#cbd5e1', fontWeight: 500 }}
-        >
-          Powered by{' '}
-          <span style={{ color: '#86efac', fontWeight: 700 }}>Nomba</span>
-          {' '}· Built for Nigeria 🇳🇬
-        </motion.p>
+          <p className="text-sm text-slate-500 text-center mt-6">
+            New to Waka?{' '}
+            <button
+              onClick={() => navigate('/register')}
+              className="font-semibold text-green-600 hover:text-green-700"
+            >
+              Create an account
+            </button>
+          </p>
+        </div>
       </div>
     </div>
   )
 }
-
 
 
 // import { useNavigate } from 'react-router-dom'
