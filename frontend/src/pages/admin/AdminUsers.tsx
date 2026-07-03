@@ -4,10 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Users, UserPlus, Search, ChevronLeft,
   ChevronRight, X, Building2, Mail,
-  Phone, Lock, MapPin, Briefcase
+  Phone, Lock, MapPin
 } from 'lucide-react'
 import { adminApi } from '../../api/admin.api'
-import { Card, Skeleton } from '../../components/ui/Card'
+import { Skeleton } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
@@ -366,6 +366,7 @@ export default function AdminUsers() {
                 <tbody>
                   {filtered.map((u: any) => {
                     const trust = TRUST_LEVELS[u.trustLevel as keyof typeof TRUST_LEVELS] || TRUST_LEVELS.basic
+                    const trustEmoji = (trust as { emoji?: string }).emoji || ''
                     return (
                       <tr
                         key={u._id}
@@ -401,7 +402,7 @@ export default function AdminUsers() {
                           {formatCurrency(u.walletBalance || 0)}
                         </td>
                         <td className="px-5 py-4">
-                          <span className="text-sm">{trust.emoji} {u.trustScore || 0}</span>
+                          <span className="text-sm">{trustEmoji} {u.trustScore || 0}</span>
                         </td>
                         <td className="px-5 py-4">
                           <Badge variant={u.isActive ? 'green' : 'red'} size="xs" dot>

@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion, useInView, AnimatePresence, useScroll, useTransform } from 'framer-motion'
+import { motion, useInView, AnimatePresence } from 'framer-motion'
 import {
   Zap, Menu, X, ArrowRight, Battery, Lamp,
   Package, Sofa, Shield, Star, MapPin, Clock,
   ChevronDown, Mail, Phone, CheckCircle,
   TrendingUp, Users, Building2, Smartphone,
-  CreditCard, RotateCcw, Lock, Wifi, Sun,
-  BarChart3, Layers, Globe
+  CreditCard, RotateCcw, Lock, Sun,
+  BarChart3
 } from 'lucide-react'
 import { FiInstagram, FiTwitter } from 'react-icons/fi'
 

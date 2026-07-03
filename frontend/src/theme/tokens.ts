@@ -61,10 +61,10 @@ export const DEVICE_CONFIG = {
 } as const
 
 export const TRUST_LEVELS = {
-  basic:   { label: 'Basic',   icon: FaCircle, color: '#64748b', threshold: 10,  rnpl: 0     },
-  trusted: { label: 'Trusted', icon: FaShieldHalved, color: '#f59e0b', threshold: 18,  rnpl: 1000  },
-  silver:  { label: 'Silver',  icon: FaMedal, color: '#94a3b8', threshold: 31,  rnpl: 2500  },
-  gold:    { label: 'Gold',    icon: FaAward, color: '#f59e0b', threshold: null, rnpl: 5000  },
+  basic:   { label: 'Basic',   icon: FaCircle, color: '#64748b', threshold: 10,  rnpl: 0,    emoji: '⚪' },
+  trusted: { label: 'Trusted', icon: FaShieldHalved, color: '#f59e0b', threshold: 18,  rnpl: 1000, emoji: '🛡️' },
+  silver:  { label: 'Silver',  icon: FaMedal, color: '#94a3b8', threshold: 31,  rnpl: 2500, emoji: '🥈' },
+  gold:    { label: 'Gold',    icon: FaAward, color: '#f59e0b', threshold: null, rnpl: 5000, emoji: '🥇' },
 } as const
 
 

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, LineChart, Line,
+  ResponsiveContainer, LineChart,
   CartesianGrid, AreaChart, Area
 } from 'recharts'
 import { adminApi } from '../../api/admin.api'

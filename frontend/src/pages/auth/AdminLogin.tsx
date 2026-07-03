@@ -24,7 +24,8 @@ export default function AdminLogin() {
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema)
   })
-
+  const { onBlur: emailOnBlur, ...emailRegister } = register('email')
+  const { onBlur: passwordOnBlur, ...passwordRegister } = register('password')
   const { mutate, isPending } = useMutation({
     mutationFn: (data: FormData) => authApi.adminLogin(data.email, data.password),
     onSuccess: (res: any) => {
@@ -132,9 +133,10 @@ export default function AdminLogin() {
                     if (!errors.email) e.target.style.border = '2px solid #f59e0b'
                   }}
                   onBlur={e => {
+                    emailOnBlur(e)
                     if (!errors.email) e.target.style.border = '2px solid #e2e8f0'
                   }}
-                  {...register('email')}
+                  {...emailRegister}
                 />
               </div>
               {errors.email && (
@@ -171,9 +173,10 @@ export default function AdminLogin() {
                     if (!errors.password) e.target.style.border = '2px solid #f59e0b'
                   }}
                   onBlur={e => {
+                    passwordOnBlur(e)
                     if (!errors.password) e.target.style.border = '2px solid #e2e8f0'
                   }}
-                  {...register('password')}
+                  {...passwordRegister}
                 />
               </div>
               {errors.password && (

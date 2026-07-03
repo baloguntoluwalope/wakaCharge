@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MapPin, Plus, X, Building2, Map,
-  Power, PowerOff, Edit3, QrCode
+  Power, PowerOff, QrCode
 } from 'lucide-react'
 import { Card, Skeleton } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
