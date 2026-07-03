@@ -1,0 +1,103 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap');
+@import "tailwindcss";
+
+/* 1. Tailwind v4 Native Theme Configuration */
+@theme {
+  --color-brand: #1db954;
+  --color-navy: #0b1420;
+  --radius-custom: 14px; /* Using --radius-* automatically extends border-radius utilities */
+}
+
+/* 2. Base Layer (Native Overrides) */
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  :root {
+    color-scheme: light dark;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    background: #f8fafc;
+    color: #0f172a;
+    min-height: 100vh;
+  }
+
+  /* Custom scrollbar and selection */
+  ::-webkit-scrollbar { width: 0; height: 0; }
+  ::selection { background: rgba(29, 185, 84, 0.2); }
+}
+
+/* 3. Components Layer (Custom UI Classes) */
+@layer components {
+  /* Charge bar animation */
+  .charge-bar {
+    position: relative;
+    overflow: hidden;
+    background: #e2e8f0;
+    border-radius: 99px;
+  }
+
+  .charge-bar::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, var(--color-brand), transparent);
+    animation: charge 1.4s ease-in-out infinite;
+  }
+
+  /* Dark mode body */
+  .dark body { background: #060b12; color: #f1f5f9; }
+
+  /* Mobile app shell */
+  .app-shell {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100svh;
+    background: white;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Smooth page transitions */
+  .page-enter { opacity: 0; transform: translateY(8px); }
+  .page-enter-active {
+    opacity: 1; transform: translateY(0);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+
+  /* Glass morphism */
+  .glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+  }
+
+  .glass-dark {
+    background: rgba(11, 20, 32, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Safe areas */
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-top { padding-top: env(safe-area-inset-top); }
+}
+
+/* Custom keyframes (if needed for .charge-bar) */
+@keyframes charge {
+  0% { left: -40%; }
+  100% { left: 140%; }
+}
+
