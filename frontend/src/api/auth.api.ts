@@ -44,4 +44,15 @@ export const authApi = {
 
   logout: () =>
     api.post('/auth/logout'),
+
+  // Add to existing authApi object:
+
+sendResetOTP: (email: string) =>
+  api.post('/auth/send-otp', { email, type: 'reset' }),
+
+verifyResetOTP: (email: string, otp: string) =>
+  api.post('/auth/verify-otp', { email, otp, type: 'reset' }),
+
+resetPassword: (email: string, password: string) =>
+  api.post('/auth/reset-password', { email, password }),
 }

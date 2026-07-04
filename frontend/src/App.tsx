@@ -21,6 +21,9 @@ import VerifyOTP from './pages/auth/VerifyOTP'
 import CompleteProfile from './pages/auth/CompleteProfile'
 import OperatorLogin from './pages/auth/OperatorLogin'
 import AdminLogin from './pages/auth/AdminLogin'
+import ForgetPassword from './pages/auth/ForgetPassword'
+import ResetPassword from './pages/auth/ResetPassword'
+import ResetVerifyOTP from './pages/auth/ResetVerifyOTP'
 
 // Lazy loaded
 const Dashboard = lazy(() => import('./pages/student/Dashboard'))
@@ -91,6 +94,9 @@ const App = () => (
         <Route path="/login" element={<Login />} />
         <Route path="/operator-login" element={<OperatorLogin />} />
         <Route path="/admin-login" element={<AdminLogin />} />
+        <Route path="/forget-password" element={<ForgetPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/reset-verify-otp" element={<ResetVerifyOTP />} />
 
         {/* Student */}
         <Route element={<ProtectedRoute role="student"><StudentLayout /></ProtectedRoute>}>

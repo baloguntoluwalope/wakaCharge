@@ -6,10 +6,12 @@ import {
   MdDashboard, MdInventory, MdAssignment,
   MdSearch, MdLogout, MdMenu, MdClose,
   MdCheckCircle, MdWarning, MdRefresh,
-  MdAccessTime, MdPerson, MdQrCodeScanner,
-  MdBatteryChargingFull, MdReportProblem,
-  MdSchedule, MdKeyboardArrowRight,
-  MdNotifications, MdStore
+  MdAccessTime, MdPerson, MdReportProblem,
+  MdBatteryChargingFull, MdSchedule,
+  MdNotifications, MdStore, MdSend,
+  MdSupportAgent, MdPriorityHigh,
+  MdCheckCircleOutline, MdHistory,
+  MdExpandMore, MdExpandLess
 } from 'react-icons/md'
 import { operatorApi } from '../../api/operator.api'
 import { authApi } from '../../api/auth.api'
@@ -20,10 +22,11 @@ import { deviceEmoji, deviceLabel, formatDateTime } from '../../utils'
 
 // ─── Sidebar nav items ───────────────────────────────────
 const NAV = [
-  { id: 'dashboard',  label: 'Dashboard',   icon: <MdDashboard size={20} /> },
-  { id: 'rentals',    label: 'Rentals',      icon: <MdAssignment size={20} /> },
-  { id: 'inventory',  label: 'Inventory',    icon: <MdInventory size={20} /> },
-  { id: 'search',     label: 'Find Student', icon: <MdSearch size={20} /> },
+  { id: 'dashboard',   label: 'Dashboard',    icon: <MdDashboard size={20} />   },
+  { id: 'rentals',     label: 'Rentals',       icon: <MdAssignment size={20} />  },
+  { id: 'inventory',   label: 'Inventory',     icon: <MdInventory size={20} />   },
+  { id: 'complaints',  label: 'Complaints',    icon: <MdSupportAgent size={20} /> },
+  { id: 'search',      label: 'Find Student',  icon: <MdSearch size={20} />      },
 ]
 
 // ─── Layout ──────────────────────────────────────────────
@@ -719,6 +722,507 @@ const DeviceRow = ({
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  )
+}
+
+// ─── Complaints Tab ───────────────────────────────────────
+type Priority = 'low' | 'medium' | 'high'
+type ComplaintStatus = 'open' | 'submitted' | 'resolved'
+type Category =
+  | 'device_issue'
+  | 'payment_issue'
+  | 'student_dispute'
+  | 'kiosk_damage'
+  | 'inventory_discrepancy'
+  | 'system_error'
+  | 'other'
+
+interface Complaint {
+  id: string
+  category: Category
+  priority: Priority
+  subject: string
+  description: string
+  status: ComplaintStatus
+  createdAt: string
+  reference?: string
+}
+
+const CATEGORIES: { value: Category; label: string; icon: string }[] = [
+  { value: 'device_issue',           label: 'Device malfunction',       icon: '🔋' },
+  { value: 'payment_issue',          label: 'Payment or wallet issue',   icon: '💳' },
+  { value: 'student_dispute',        label: 'Student dispute',           icon: '👤' },
+  { value: 'kiosk_damage',           label: 'Kiosk or locker damage',    icon: '🏪' },
+  { value: 'inventory_discrepancy',  label: 'Inventory discrepancy',     icon: '📦' },
+  { value: 'system_error',           label: 'System or app error',       icon: '⚠️' },
+  { value: 'other',                  label: 'Other',                     icon: '📝' },
+]
+
+const PRIORITY_CONFIG: Record<Priority, { label: string; color: string; bg: string }> = {
+  low:    { label: 'Low',    color: '#64748b', bg: '#f8fafc' },
+  medium: { label: 'Medium', color: '#f59e0b', bg: '#fffbeb' },
+  high:   { label: 'High',   color: '#ef4444', bg: '#fef2f2' },
+}
+
+const STATUS_CONFIG: Record<ComplaintStatus, { label: string; color: string; icon: React.ReactNode }> = {
+  open:      { label: 'Draft',     color: '#94a3b8', icon: <MdHistory size={14} />             },
+  submitted: { label: 'Submitted', color: '#0ea5e9', icon: <MdSend size={14} />                },
+  resolved:  { label: 'Resolved',  color: '#22c55e', icon: <MdCheckCircleOutline size={14} />  },
+}
+
+const ComplaintsTab = ({ operatorName }: { operatorName: string }) => {
+  const { toast } = useToast()
+
+  // Local state — in a real app these would be persisted to backend
+  const [complaints, setComplaints] = useState<Complaint[]>(() => {
+    try {
+      const stored = localStorage.getItem('waka_operator_complaints')
+      return stored ? JSON.parse(stored) : []
+    } catch {
+      return []
+    }
+  })
+
+  const [view, setView] = useState<'list' | 'new'>('list')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  // Form state
+  const [category, setCategory] = useState<Category | ''>('')
+  const [priority, setPriority] = useState<Priority>('medium')
+  const [subject, setSubject] = useState('')
+  const [description, setDescription] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const saveComplaints = (updated: Complaint[]) => {
+    setComplaints(updated)
+    localStorage.setItem('waka_operator_complaints', JSON.stringify(updated))
+  }
+
+  const handleSubmit = async () => {
+    if (!category || !subject.trim() || description.trim().length < 20) {
+      toast('Please fill all fields. Description must be at least 20 characters.', 'error')
+      return
+    }
+
+    setSubmitting(true)
+
+    // Simulate API call
+    await new Promise(r => setTimeout(r, 1200))
+
+    const newComplaint: Complaint = {
+      id: `WC-${Date.now()}`,
+      category: category as Category,
+      priority,
+      subject: subject.trim(),
+      description: description.trim(),
+      status: 'submitted',
+      createdAt: new Date().toISOString(),
+      reference: `REF-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+    }
+
+    saveComplaints([newComplaint, ...complaints])
+
+    // Reset form
+    setCategory('')
+    setPriority('medium')
+    setSubject('')
+    setDescription('')
+    setSubmitting(false)
+    setView('list')
+
+    toast(`Complaint submitted — reference: ${newComplaint.reference}`, 'success')
+  }
+
+  const markResolved = (id: string) => {
+    saveComplaints(
+      complaints.map(c =>
+        c.id === id ? { ...c, status: 'resolved' as ComplaintStatus } : c
+      )
+    )
+    toast('Complaint marked as resolved', 'success')
+  }
+
+  const openCount = complaints.filter(c => c.status !== 'resolved').length
+
+  return (
+    <div className="p-5 lg:p-8 max-w-4xl">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-0.5">
+            Support centre
+          </p>
+          <h1 className="text-2xl font-black text-navy-900">Complaints</h1>
+          <p className="text-slate-400 text-sm mt-0.5">
+            Report issues to the Waka Charge support team
+          </p>
+        </div>
+        <button
+          onClick={() => setView(view === 'list' ? 'new' : 'list')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all ${
+            view === 'new'
+              ? 'bg-slate-100 text-slate-600'
+              : 'bg-green-500 text-white hover:bg-green-400'
+          }`}
+        >
+          {view === 'new' ? (
+            <><MdHistory size={16} /> View history</>
+          ) : (
+            <><MdSend size={16} /> New complaint</>
+          )}
+        </button>
+      </div>
+
+      {/* ── New complaint form ─────────────────── */}
+      {view === 'new' && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-3xl border border-slate-100 overflow-hidden"
+        >
+          <div className="px-6 py-5 border-b border-slate-100 bg-slate-50">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-green-100 flex items-center justify-center">
+                <MdSupportAgent size={20} className="text-green-600" />
+              </div>
+              <div>
+                <p className="font-bold text-navy-900 text-sm">Submit a complaint</p>
+                <p className="text-slate-400 text-xs mt-0.5">
+                  Reports are reviewed within 24 hours by the Waka Charge team
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 flex flex-col gap-5">
+
+            {/* Category */}
+            <div>
+              <label className="text-sm font-semibold text-navy-700 block mb-2">
+                Category <span className="text-red-400">*</span>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {CATEGORIES.map(c => (
+                  <button
+                    key={c.value}
+                    type="button"
+                    onClick={() => setCategory(c.value)}
+                    className={`flex items-center gap-2.5 px-3 py-3 rounded-2xl border-2 text-left text-sm font-semibold transition-all ${
+                      category === c.value
+                        ? 'border-green-500 bg-green-50 text-green-800'
+                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    <span className="text-base flex-shrink-0">{c.icon}</span>
+                    <span className="text-xs leading-tight">{c.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Priority */}
+            <div>
+              <label className="text-sm font-semibold text-navy-700 block mb-2">
+                Priority <span className="text-red-400">*</span>
+              </label>
+              <div className="flex gap-2">
+                {(Object.entries(PRIORITY_CONFIG) as [Priority, typeof PRIORITY_CONFIG[Priority]][]).map(([key, cfg]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setPriority(key)}
+                    className={`flex-1 py-3 rounded-2xl border-2 text-sm font-bold transition-all ${
+                      priority === key
+                        ? 'border-current'
+                        : 'border-slate-200 bg-slate-50 text-slate-400'
+                    }`}
+                    style={priority === key
+                      ? { borderColor: cfg.color, background: cfg.bg, color: cfg.color }
+                      : {}
+                    }
+                  >
+                    {priority === key && (
+                      <MdPriorityHigh size={14} className="inline mr-1" />
+                    )}
+                    {cfg.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-slate-400 mt-1.5">
+                {priority === 'high' && '🔴 High priority — kiosk non-functional or safety issue'}
+                {priority === 'medium' && '🟡 Medium priority — affecting operations but manageable'}
+                {priority === 'low' && '⚪ Low priority — minor issue, no operational impact'}
+              </p>
+            </div>
+
+            {/* Subject */}
+            <div>
+              <label className="text-sm font-semibold text-navy-700 block mb-1.5">
+                Subject <span className="text-red-400">*</span>
+              </label>
+              <input
+                value={subject}
+                onChange={e => setSubject(e.target.value)}
+                placeholder="Brief summary of the issue…"
+                maxLength={120}
+                className="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 bg-slate-50 text-sm font-medium text-navy-900 placeholder-slate-300 outline-none focus:border-green-500 focus:bg-white transition-all"
+              />
+              <div className="flex justify-end mt-1">
+                <p className="text-xs text-slate-400">{subject.length}/120</p>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="text-sm font-semibold text-navy-700 block mb-1.5">
+                Description <span className="text-red-400">*</span>
+              </label>
+              <textarea
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder="Describe the issue in detail. Include device codes, student names, transaction references, or any other relevant information that will help the team investigate…"
+                rows={5}
+                maxLength={1000}
+                className="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 bg-slate-50 text-sm font-medium text-navy-900 placeholder-slate-300 outline-none focus:border-green-500 focus:bg-white transition-all resize-none"
+              />
+              <div className="flex items-center justify-between mt-1">
+                <p className={`text-xs font-medium ${
+                  description.length >= 20 ? 'text-green-600' : 'text-slate-400'
+                }`}>
+                  {description.length < 20
+                    ? `${20 - description.length} more characters needed`
+                    : '✓ Good description length'
+                  }
+                </p>
+                <p className="text-xs text-slate-400">{description.length}/1000</p>
+              </div>
+            </div>
+
+            {/* Operator info (read only) */}
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                Filed by
+              </p>
+              <p className="text-sm font-bold text-navy-900">{operatorName}</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {new Date().toLocaleDateString('en-NG', {
+                  weekday: 'long', year: 'numeric',
+                  month: 'long', day: 'numeric'
+                })}
+              </p>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setView('list')}
+                className="flex-1 py-3 rounded-2xl border-2 border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
+              >
+                Cancel
+              </button>
+              <motion.button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitting || !category || !subject.trim() || description.length < 20}
+                whileTap={{ scale: 0.98 }}
+                className="flex-1 py-3 rounded-2xl bg-green-500 text-white text-sm font-black hover:bg-green-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {submitting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Submitting…
+                  </>
+                ) : (
+                  <>
+                    <MdSend size={16} />
+                    Submit complaint
+                  </>
+                )}
+              </motion.button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── Complaints list ────────────────────── */}
+      {view === 'list' && (
+        <div>
+          {/* Stats strip */}
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            {[
+              {
+                label: 'Total filed',
+                value: complaints.length,
+                color: '#64748b',
+                bg: '#f8fafc',
+              },
+              {
+                label: 'Open',
+                value: openCount,
+                color: '#f59e0b',
+                bg: '#fffbeb',
+              },
+              {
+                label: 'Resolved',
+                value: complaints.filter(c => c.status === 'resolved').length,
+                color: '#22c55e',
+                bg: '#f0fdf4',
+              },
+            ].map(s => (
+              <div
+                key={s.label}
+                className="rounded-2xl p-4 text-center"
+                style={{ background: s.bg }}
+              >
+                <p className="text-2xl font-black" style={{ color: s.color }}>
+                  {s.value}
+                </p>
+                <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                  {s.label}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Empty state */}
+          {complaints.length === 0 ? (
+            <div className="bg-white rounded-3xl border border-slate-100 p-12 text-center">
+              <MdSupportAgent size={40} className="text-slate-300 mx-auto mb-3" />
+              <p className="font-bold text-navy-900">No complaints filed</p>
+              <p className="text-slate-400 text-sm mt-1 mb-5">
+                Report any kiosk or operational issues here
+              </p>
+              <button
+                onClick={() => setView('new')}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-green-500 text-white text-sm font-bold hover:bg-green-400 transition-all"
+              >
+                <MdSend size={15} />
+                File first complaint
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {complaints.map((c) => {
+                const priorityCfg = PRIORITY_CONFIG[c.priority]
+                const statusCfg = STATUS_CONFIG[c.status]
+                const catLabel = CATEGORIES.find(x => x.value === c.category)
+                const expanded = expandedId === c.id
+
+                return (
+                  <motion.div
+                    key={c.id}
+                    layout
+                    className="bg-white rounded-2xl border border-slate-100 overflow-hidden"
+                  >
+                    {/* Row header */}
+                    <button
+                      onClick={() => setExpandedId(expanded ? null : c.id)}
+                      className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-slate-50/50 transition-colors"
+                    >
+                      {/* Category icon */}
+                      <span className="text-xl flex-shrink-0">
+                        {catLabel?.icon}
+                      </span>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <p className="font-bold text-navy-900 text-sm truncate">
+                            {c.subject}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Status */}
+                          <span
+                            className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                            style={{ color: statusCfg.color, background: `${statusCfg.color}15` }}
+                          >
+                            {statusCfg.icon}
+                            {statusCfg.label}
+                          </span>
+                          {/* Priority */}
+                          <span
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                            style={{ color: priorityCfg.color, background: priorityCfg.bg }}
+                          >
+                            {priorityCfg.label} priority
+                          </span>
+                          {/* Date */}
+                          <span className="text-[10px] text-slate-400">
+                            {new Date(c.createdAt).toLocaleDateString('en-NG', {
+                              month: 'short', day: 'numeric'
+                            })}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Expand icon */}
+                      <div className="text-slate-400 flex-shrink-0">
+                        {expanded
+                          ? <MdExpandLess size={20} />
+                          : <MdExpandMore size={20} />
+                        }
+                      </div>
+                    </button>
+
+                    {/* Expanded detail */}
+                    <AnimatePresence>
+                      {expanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="px-5 pb-5 border-t border-slate-100">
+                            {/* Reference */}
+                            {c.reference && (
+                              <div className="flex items-center justify-between py-3 border-b border-slate-50">
+                                <p className="text-xs text-slate-400">Reference</p>
+                                <p className="font-mono text-xs font-bold text-navy-900 bg-slate-100 px-2 py-1 rounded-lg">
+                                  {c.reference}
+                                </p>
+                              </div>
+                            )}
+                            {/* Category */}
+                            <div className="flex items-center justify-between py-3 border-b border-slate-50">
+                              <p className="text-xs text-slate-400">Category</p>
+                              <p className="text-xs font-semibold text-navy-700">
+                                {catLabel?.icon} {catLabel?.label}
+                              </p>
+                            </div>
+                            {/* Description */}
+                            <div className="py-3">
+                              <p className="text-xs text-slate-400 mb-2">Description</p>
+                              <p className="text-sm text-slate-600 leading-relaxed">
+                                {c.description}
+                              </p>
+                            </div>
+
+                            {/* Action */}
+                            {c.status !== 'resolved' && (
+                              <div className="pt-2 flex gap-2">
+                                <button
+                                  onClick={() => markResolved(c.id)}
+                                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-50 border border-green-200 text-green-700 text-xs font-bold hover:bg-green-100 transition-colors"
+                                >
+                                  <MdCheckCircleOutline size={14} />
+                                  Mark resolved
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

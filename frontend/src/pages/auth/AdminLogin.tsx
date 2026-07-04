@@ -3,18 +3,24 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
+import { motion } from 'framer-motion'
 import {
-  MdEmail, MdLock, MdAdminPanelSettings,
-  MdArrowBack, MdSecurity
+  MdEmail,
+  MdLock,
+  MdAdminPanelSettings,
+  MdArrowBack,
+  MdHelpOutline,
+  MdSecurity,
+  MdBarChart,
+  MdPeople,
 } from 'react-icons/md'
 import { authApi } from '../../api/auth.api'
 import { useToast } from '../../components/ui/Toast'
 import { useAuth } from '../../context/AuthContext'
-import { AuthField, authInput } from '../../components/auth/AuthShell'
 
 const schema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  email: z.string().email('Valid email required'),
+  password: z.string().min(1, 'Password required'),
 })
 type Form = z.infer<typeof schema>
 
@@ -23,7 +29,7 @@ export default function AdminLogin() {
   const { toast } = useToast()
   const { login } = useAuth()
 
-  const { register, handleSubmit, formState: { errors } } = useForm<Form>({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<Form>({
     resolver: zodResolver(schema),
   })
 
@@ -37,6 +43,8 @@ export default function AdminLogin() {
       toast(err.response?.data?.message || 'Access denied', 'error'),
   })
 
+  const email = watch('email', '')
+
   return (
     <div
       className="min-h-screen w-full flex"
@@ -44,8 +52,11 @@ export default function AdminLogin() {
         background: 'linear-gradient(160deg, #060b12 0%, #0b1420 50%, #0f1a0b 100%)'
       }}
     >
-      {/* ── Left info panel ─────────────────────── */}
+
+      {/* ── Left info panel (desktop) ────────────── */}
       <div className="hidden lg:flex flex-col justify-between w-1/2 xl:w-3/5 px-14 py-12">
+
+        {/* Logo */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-green-500 flex items-center justify-center">
             <span className="text-white font-black text-base">W</span>
@@ -60,6 +71,7 @@ export default function AdminLogin() {
           </div>
         </div>
 
+        {/* Hero */}
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-green-400 mb-5">
             Platform management
@@ -76,8 +88,8 @@ export default function AdminLogin() {
           <div className="flex flex-col gap-3">
             {[
               { icon: <MdSecurity size={18} />, text: 'Full payment audit trail with HMAC verification' },
-              { icon: <MdAdminPanelSettings size={18} />, text: 'Real-time reconciliation reports' },
-              { icon: <MdSecurity size={18} />, text: 'Trust score and RNPL oversight across all campuses' },
+              { icon: <MdBarChart size={18} />, text: 'Real-time reconciliation and revenue reports' },
+              { icon: <MdPeople size={18} />, text: 'Trust score and RNPL oversight across all campuses' },
             ].map((f, i) => (
               <div key={i} className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-green-400 flex-shrink-0">
@@ -90,26 +102,32 @@ export default function AdminLogin() {
         </div>
 
         <p className="text-white/20 text-xs">
-          © 2026 Waka Charge · Restricted access · Authorized personnel only
+          © 2026 Waka Charge · Restricted access · All sessions monitored
         </p>
       </div>
 
       {/* ── Right login panel ───────────────────── */}
       <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
         <div className="w-full max-w-md">
-          {/* Back */}
+
+          {/* Mobile back */}
           <button
             onClick={() => navigate('/login')}
-            className="flex items-center gap-1.5 text-white/30 text-sm font-medium mb-8 hover:text-white/60 transition-colors lg:hidden"
+            className="flex items-center gap-1.5 text-white/40 text-sm font-medium mb-8 hover:text-white/60 transition-colors lg:hidden"
           >
             <MdArrowBack size={16} />
             Back
           </button>
 
+          {/* Card */}
           <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
-            {/* Header stripe */}
-            <div className="bg-navy-900 px-8 pt-8 pb-6 border-b border-white/10"
-              style={{ background: 'linear-gradient(135deg, #0b1420, #1a2f45)' }}
+
+            {/* Dark header */}
+            <div
+              className="px-8 pt-8 pb-6"
+              style={{
+                background: 'linear-gradient(135deg, #0b1420, #1a2f45)'
+              }}
             >
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
@@ -119,7 +137,9 @@ export default function AdminLogin() {
                   <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400/70 mb-0.5">
                     Admin Console
                   </p>
-                  <p className="text-white font-black text-lg leading-none">Sign in</p>
+                  <p className="text-white font-black text-lg leading-none">
+                    Sign in
+                  </p>
                 </div>
               </div>
               <p className="text-white/40 text-sm">
@@ -129,50 +149,105 @@ export default function AdminLogin() {
 
             {/* Form */}
             <div className="p-8">
-              <form onSubmit={handleSubmit(d => mutate(d))} className="flex flex-col gap-4">
-                <AuthField
-                  label="Email address"
-                  icon={<MdEmail size={18} />}
-                  error={errors.email?.message}
-                >
-                  <input
-                    type="email"
-                    autoFocus
-                    autoComplete="email"
-                    placeholder="admin@wakacharge.com"
-                    className={authInput(!!errors.email)}
-                    {...register('email')}
-                  />
-                </AuthField>
+              <form
+                onSubmit={handleSubmit(d => mutate(d))}
+                className="flex flex-col gap-4"
+              >
+                {/* Email */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-semibold text-navy-700">
+                    Email address
+                  </label>
+                  <div className="relative">
+                    <MdEmail size={18}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                    />
+                    <input
+                      type="email"
+                      autoFocus
+                      autoComplete="email"
+                      placeholder="admin@wakacharge.com"
+                      className={`w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm font-medium border-2 outline-none transition-all text-navy-900 placeholder-slate-300 ${
+                        errors.email
+                          ? 'border-red-400 bg-red-50'
+                          : 'border-slate-200 bg-slate-50 focus:border-navy-500 focus:bg-white'
+                      }`}
+                      {...register('email')}
+                    />
+                  </div>
+                  {errors.email && (
+                    <p className="text-red-500 text-xs font-medium">
+                      ⚠ {errors.email.message}
+                    </p>
+                  )}
+                </div>
 
-                <AuthField
-                  label="Password"
-                  icon={<MdLock size={18} />}
-                  error={errors.password?.message}
-                >
-                  <input
-                    type="password"
-                    autoComplete="current-password"
-                    placeholder="••••••••"
-                    className={authInput(!!errors.password)}
-                    {...register('password')}
-                  />
-                </AuthField>
+                {/* Password + forgot */}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-semibold text-navy-700">
+                      Password
+                    </label>
+                    {/* ── FORGOT PASSWORD LINK ── */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate('/forgot-password', {
+                          state: { prefillEmail: email, role: 'admin' }
+                        })
+                      }
+                      className="text-xs font-semibold text-slate-500 hover:text-navy-700 transition-colors flex items-center gap-1"
+                    >
+                      <MdHelpOutline size={13} />
+                      Forgot password?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <MdLock size={18}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                    />
+                    <input
+                      type="password"
+                      autoComplete="current-password"
+                      placeholder="••••••••"
+                      className={`w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm font-medium border-2 outline-none transition-all text-navy-900 placeholder-slate-300 ${
+                        errors.password
+                          ? 'border-red-400 bg-red-50'
+                          : 'border-slate-200 bg-slate-50 focus:border-navy-500 focus:bg-white'
+                      }`}
+                      {...register('password')}
+                    />
+                  </div>
+                  {errors.password && (
+                    <p className="text-red-500 text-xs font-medium">
+                      ⚠ {errors.password.message}
+                    </p>
+                  )}
+                </div>
 
-                <button
+                <motion.button
                   type="submit"
                   disabled={isPending}
-                  className="w-full py-3.5 rounded-2xl bg-navy-900 text-white font-black text-sm mt-2 hover:bg-navy-800 transition-all disabled:opacity-40"
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full py-3.5 rounded-2xl bg-navy-900 text-white font-black text-sm hover:bg-navy-800 transition-all disabled:opacity-40 flex items-center justify-center gap-2 mt-1"
                 >
-                  {isPending ? 'Verifying access…' : 'Enter console'}
-                </button>
+                  {isPending ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Verifying access…
+                    </>
+                  ) : (
+                    'Enter console'
+                  )}
+                </motion.button>
               </form>
 
-              <div className="mt-6 flex items-start gap-2.5 p-3 bg-slate-50 rounded-2xl border border-slate-200">
+              {/* Security note */}
+              <div className="mt-5 flex items-start gap-2.5 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
                 <MdSecurity size={15} className="text-slate-400 mt-0.5 flex-shrink-0" />
                 <p className="text-slate-400 text-xs leading-relaxed">
                   This portal is restricted to authorized administrators.
-                  All sessions are monitored and logged.
+                  All login attempts and actions are monitored and logged.
                 </p>
               </div>
 
