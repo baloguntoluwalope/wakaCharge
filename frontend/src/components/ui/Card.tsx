@@ -1,5 +1,6 @@
 import type { HTMLAttributes, ReactNode } from 'react'
 import { motion } from 'framer-motion'
+import { FaEye, FaEyeSlash } from 'react-icons/fa6'
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
   hoverable?: boolean
@@ -62,6 +63,8 @@ interface WalletCardProps {
   onFund?: () => void
   onView?: () => void
   loading?: boolean
+  maskedBalance?: boolean
+  onToggleMask?: () => void
 }
 
 export const WalletCard = ({
@@ -71,7 +74,9 @@ export const WalletCard = ({
   accountName,
   onFund,
   onView,
-  loading
+  loading,
+  maskedBalance = false,
+  onToggleMask
 }: WalletCardProps) => {
   return (
     <div className="relative rounded-3xl overflow-hidden" style={{
@@ -92,9 +97,24 @@ export const WalletCard = ({
             {loading ? (
               <div className="charge-bar h-8 w-32 rounded-xl" />
             ) : (
-              <p className="text-4xl font-black tracking-tight">
-                ₦{balance?.toLocaleString('en-NG') || '0'}
-              </p>
+              <div className="flex items-center gap-2.5">
+                <p className="text-4xl font-black tracking-tight tabular-nums">
+                  {maskedBalance
+                    ? '₦ ••••••'
+                    : `₦${balance?.toLocaleString('en-NG') || '0'}`}
+                </p>
+                {onToggleMask && (
+                  <button
+                    onClick={onToggleMask}
+                    className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/20 transition-colors flex-shrink-0"
+                    aria-label={maskedBalance ? 'Show balance' : 'Hide balance'}
+                  >
+                    {maskedBalance
+                      ? <FaEyeSlash className="text-xs" />
+                      : <FaEye className="text-xs" />}
+                  </button>
+                )}
+              </div>
             )}
           </div>
           <div className="flex items-center gap-1.5 bg-green-500/20 px-3 py-1.5 rounded-full">
@@ -107,7 +127,7 @@ export const WalletCard = ({
           <div className="mb-6 p-3 rounded-2xl bg-white/5 border border-white/10">
             <p className="text-xs text-white/40 mb-1">{bankName || 'Nomba'}</p>
             <p className="font-mono text-lg font-bold tracking-widest text-white">
-              {accountNumber}
+              {maskedBalance ? '•••• •••• ' + accountNumber.slice(-4) : accountNumber}
             </p>
             <p className="text-xs text-white/50 mt-0.5">{accountName}</p>
           </div>

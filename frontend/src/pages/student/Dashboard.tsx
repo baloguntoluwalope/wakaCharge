@@ -1,7 +1,11 @@
+import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { FaBell, FaUser, FaLocationDot, FaCamera, FaBolt, FaClockRotateLeft, FaCompass } from 'react-icons/fa6'
+import {
+  FaBell, FaUser, FaLocationDot, FaCamera, FaBolt,
+  FaClockRotateLeft, FaCompass, FaGift, FaCartShopping, FaTrainSubway
+} from 'react-icons/fa6'
 import { useAuth } from '../../context/AuthContext'
 import { paymentsApi } from '../../api/payments.api'
 import { rentalsApi } from '../../api/rentals.api'
@@ -19,6 +23,8 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const location = useLocation()
   const justRegistered = location.state?.justRegistered
+
+  const [showBalance, setShowBalance] = useState(true)
 
   const { data: walletData, isLoading: walletLoading } = useQuery({
     queryKey: ['wallet'],
@@ -43,6 +49,46 @@ export default function Dashboard() {
   const score = user?.trustScore || 0
   const nextThreshold = trustConfig.threshold || 31
   const progress = Math.min(100, (score / nextThreshold) * 100)
+
+  // Promo chips — Opay-style quick promos
+  const promos = [
+    {
+      icon: FaBolt,
+      label: 'Fund Wallet',
+      color: '#1db954',
+      bg: 'bg-green-50',
+      border: 'border-green-200',
+      soon: false,
+      onClick: () => navigate('/wallet/fund'),
+    },
+    {
+      icon: FaGift,
+      label: 'Refer & Earn',
+      color: '#f59e0b',
+      bg: 'bg-amber-50',
+      border: 'border-amber-200',
+      soon: true,
+      onClick: () => {},
+    },
+    {
+      icon: FaTrainSubway,
+      label: 'Transport',
+      color: '#6366f1',
+      bg: 'bg-indigo-50',
+      border: 'border-indigo-200',
+      soon: true,
+      onClick: () => {},
+    },
+    {
+      icon: FaCartShopping,
+      label: 'Market',
+      color: '#ec4899',
+      bg: 'bg-pink-50',
+      border: 'border-pink-200',
+      soon: true,
+      onClick: () => {},
+    },
+  ]
 
   return (
     <div className="bg-slate-50 min-h-svh">
@@ -102,12 +148,14 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        {/* Wallet Card */}
+        {/* Wallet Card with show/hide balance toggle */}
         {walletLoading ? (
           <Skeleton className="h-48" />
         ) : (
           <WalletCard
             balance={wallet?.walletBalance || 0}
+            maskedBalance={!showBalance}
+            onToggleMask={() => setShowBalance(v => !v)}
             accountNumber={wallet?.virtualAccount?.accountNumber}
             bankName={wallet?.virtualAccount?.bankName}
             accountName={wallet?.virtualAccount?.accountName}
@@ -115,6 +163,9 @@ export default function Dashboard() {
             onView={() => navigate('/transactions')}
           />
         )}
+
+        {/* Promo badge strip — Opay-style quick promos */}
+       
 
         {/* Active Rental Banner */}
         {activeRental && (

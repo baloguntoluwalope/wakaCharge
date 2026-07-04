@@ -51,7 +51,7 @@ sendResetOTP: (email: string) =>
   api.post('/auth/send-otp', { email, type: 'reset' }),
 
 verifyResetOTP: (email: string, otp: string) =>
-  api.post('/auth/verify-otp', { email, otp, type: 'reset' }),
+  api.post('/auth/verify-reset-otp', { email, otp }),
 
 resetPassword: (email: string, password: string) =>
   api.post('/auth/reset-password', { email, password }),

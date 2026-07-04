@@ -1,14 +1,14 @@
-import { useState } from 'react'
-import { useNavigate, useLocation, Outlet } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, Outlet } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MdDashboard, MdInventory, MdAssignment,
-  MdSearch, MdLogout, MdMenu, MdClose,
+  MdSearch, MdLogout, MdMenu,
   MdCheckCircle, MdWarning, MdRefresh,
   MdAccessTime, MdPerson, MdReportProblem,
-  MdBatteryChargingFull, MdSchedule,
-  MdNotifications, MdStore, MdSend,
+  MdBatteryChargingFull,
+  MdStore, MdSend,
   MdSupportAgent, MdPriorityHigh,
   MdCheckCircleOutline, MdHistory,
   MdExpandMore, MdExpandLess
@@ -16,7 +16,7 @@ import {
 import { operatorApi } from '../../api/operator.api'
 import { authApi } from '../../api/auth.api'
 import { useAuth } from '../../context/AuthContext'
-import { Badge, StatusPill } from '../../components/ui/Badge'
+import { StatusPill } from '../../components/ui/Badge'
 import { useToast } from '../../components/ui/Toast'
 import { deviceEmoji, deviceLabel, formatDateTime } from '../../utils'
 
@@ -39,8 +39,6 @@ export default function OperatorDashboard() {
   const [clockedIn, setClockedIn] = useState(false)
   const [clockInTime, setClockInTime] = useState<string | null>(null)
 
-  const qc = useQueryClient()
-
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['operator-dashboard'],
     queryFn: operatorApi.getDashboard,
@@ -49,23 +47,31 @@ export default function OperatorDashboard() {
 
   const dash = data as any
 
+  // Sync local shift state with whatever the backend reports
+  // (handles page refresh mid-shift)
+  useEffect(() => {
+    if (dash?.shiftStatus) {
+      setClockedIn(!!dash.shiftStatus.clockedIn)
+      setClockInTime(dash.shiftStatus.clockInTime || null)
+    }
+  }, [dash?.shiftStatus])
+
   const { mutate: clockIn, isPending: clockingIn } = useMutation({
     mutationFn: operatorApi.clockIn,
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       setClockedIn(true)
-      setClockInTime(new Date().toISOString())
+      setClockInTime(res?.clockInTime || new Date().toISOString())
       toast('Clocked in. Have a great shift!', 'success')
     },
     onError: () => toast('Clock in failed', 'error'),
   })
 
   const { mutate: clockOut, isPending: clockingOut } = useMutation({
-    mutationFn: () => operatorApi.clockOut(clockInTime!),
+    mutationFn: () => operatorApi.clockOut(clockInTime || undefined),
     onSuccess: () => {
       toast('Clocked out. Shift summary saved.', 'success')
-      try { authApi.logout() } catch {}
-      logout()
-      navigate('/')
+      setClockedIn(false)
+      setClockInTime(null)
     },
     onError: () => toast('Clock out failed', 'error'),
   })
@@ -246,6 +252,7 @@ export default function OperatorDashboard() {
           {activeTab === 'dashboard' && <DashboardTab dash={dash} loading={isLoading} refetch={refetch} />}
           {activeTab === 'rentals' && <RentalsTab />}
           {activeTab === 'inventory' && <InventoryTab dash={dash} />}
+          {activeTab === 'complaints' && <ComplaintsTab operatorName={user?.name || 'Operator'} />}
           {activeTab === 'search' && <SearchTab />}
         </main>
       </div>
@@ -579,12 +586,6 @@ const InventoryTab = ({ dash }: { dash: any }) => {
     },
     onError: () => toast('Failed to report damage', 'error'),
   })
-
-  const grouped = devices.reduce((acc: any, d: any) => {
-    if (!acc[d.deviceType]) acc[d.deviceType] = []
-    acc[d.deviceType].push(d)
-    return acc
-  }, {})
 
   return (
     <div className="p-5 lg:p-8 max-w-4xl">

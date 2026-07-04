@@ -24,6 +24,9 @@ import AdminLogin from './pages/auth/AdminLogin'
 import ForgetPassword from './pages/auth/ForgetPassword'
 import ResetPassword from './pages/auth/ResetPassword'
 import ResetVerifyOTP from './pages/auth/ResetVerifyOTP'
+// Add import
+import PaymentVerify from './pages/payment/PaymentVerify'
+
 
 // Lazy loaded
 const Dashboard = lazy(() => import('./pages/student/Dashboard'))
@@ -87,6 +90,11 @@ const App = () => (
         <Route path="/landing" element={<Landing />} />
         <Route path="/roadmap" element={<Roadmap />} />
 
+         // Add route — public, no auth required so Nomba redirect always lands correctly
+<Route path="/payment/verify" element={<PaymentVerify />} />
+<Route path="/payment/callback" element={<PaymentVerify />} />
+<Route path="/payment/mock" element={<PaymentVerify />} />
+
         {/* Auth */}
         <Route path="/register" element={<EmailEntry />} />
         <Route path="/verify-otp" element={<VerifyOTP />} />
@@ -130,8 +138,9 @@ const App = () => (
           <Route path="/admin/revenue" element={<AdminRevenue />} />
           <Route path="/admin/audit" element={<AdminAudit />} />
           <Route path="/admin/stations" element={<AdminStations/>}/>
-          <Route path="admin/devices" element={<AdminDevices/>}/>
+          <Route path="/admin/devices" element={<AdminDevices/>}/>
         </Route>
+        
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />

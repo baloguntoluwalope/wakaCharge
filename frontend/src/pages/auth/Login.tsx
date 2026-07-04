@@ -8,6 +8,7 @@ import {
   MdEmail,
   MdLock,
   MdArrowForward,
+  MdArrowBack,
   MdStore,
   MdAdminPanelSettings,
   MdHelpOutline,
@@ -70,13 +71,23 @@ export default function Login() {
           background: 'linear-gradient(160deg, #060b12 0%, #0b1420 60%, #0f2318 100%)'
         }}
       >
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-green-500 flex items-center justify-center">
-            <span className="text-white font-black text-base">W</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-green-500 flex items-center justify-center">
+              <span className="text-white font-black text-base">W</span>
+            </div>
+            <span className="font-black text-white text-xl tracking-tight">
+              Waka<span className="text-green-400">Charge</span>
+            </span>
           </div>
-          <span className="font-black text-white text-xl tracking-tight">
-            Waka<span className="text-green-400">Charge</span>
-          </span>
+          <button
+            type="button"
+            onClick={() => navigate('/landing')}
+            className="flex items-center gap-1.5 text-white/50 text-sm font-medium hover:text-white transition-colors"
+          >
+            <MdArrowBack size={16} />
+            Home
+          </button>
         </div>
 
         <div>
@@ -109,6 +120,16 @@ export default function Login() {
 
       {/* ── Right form panel ─────────────────────── */}
       <div className="flex-1 flex flex-col justify-center px-6 py-10 lg:px-12 xl:px-20">
+
+        {/* Back to landing (mobile + desktop) */}
+        <button
+          type="button"
+          onClick={() => navigate('/landing')}
+          className="flex items-center gap-1.5 text-slate-500 text-sm font-medium hover:text-navy-900 transition-colors mb-6 self-start lg:hidden"
+        >
+          <MdArrowBack size={18} />
+          Back to home
+        </button>
 
         {/* Mobile logo */}
         <div className="flex items-center gap-2 mb-10 lg:hidden">
