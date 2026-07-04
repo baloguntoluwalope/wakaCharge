@@ -94,7 +94,7 @@ const App = () => (
         <Route path="/login" element={<Login />} />
         <Route path="/operator-login" element={<OperatorLogin />} />
         <Route path="/admin-login" element={<AdminLogin />} />
-        <Route path="/forget-password" element={<ForgetPassword />} />
+        <Route path="/forgot-password" element={<ForgetPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/reset-verify-otp" element={<ResetVerifyOTP />} />
 
