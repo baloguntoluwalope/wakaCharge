@@ -27,7 +27,12 @@ export default function OperatorLogin() {
   const { toast } = useToast()
   const { login } = useAuth()
 
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<Form>({
+  const {
+    register,
+    handleSubmit,
+    getValues,
+    formState: { errors }
+  } = useForm<Form>({
     resolver: zodResolver(schema),
   })
 
@@ -38,10 +43,21 @@ export default function OperatorLogin() {
       navigate('/operator/dashboard')
     },
     onError: (err: any) =>
-      toast(err.response?.data?.message || 'Invalid credentials', 'error'),
+      toast(
+        err.response?.data?.message || 'Invalid credentials',
+        'error'
+      ),
   })
 
-  const email = watch('email', '')
+  // ── Separate navigate handler — NOT inside form ──────────
+  const handleForgotPassword = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const email = getValues('email')
+    navigate('/forgot-password', {
+      state: { prefillEmail: email || '' }
+    })
+  }
 
   return (
     <div
@@ -54,6 +70,7 @@ export default function OperatorLogin() {
 
         {/* Back */}
         <button
+          type="button"
           onClick={() => navigate('/login')}
           className="flex items-center gap-1.5 text-white/40 text-sm font-medium mb-8 hover:text-white/70 transition-colors"
         >
@@ -78,7 +95,7 @@ export default function OperatorLogin() {
             </p>
           </div>
 
-          {/* Form */}
+          {/* Form body */}
           <div className="p-8">
             <form
               onSubmit={handleSubmit(d => mutate(d))}
@@ -90,7 +107,8 @@ export default function OperatorLogin() {
                   Email address
                 </label>
                 <div className="relative">
-                  <MdEmail size={18}
+                  <MdEmail
+                    size={18}
                     className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
                   />
                   <input
@@ -98,11 +116,15 @@ export default function OperatorLogin() {
                     autoFocus
                     autoComplete="email"
                     placeholder="operator@wakacharge.com"
-                    className={`w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm font-medium border-2 outline-none transition-all text-navy-900 placeholder-slate-300 ${
-                      errors.email
+                    className={`
+                      w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm font-medium
+                      border-2 outline-none transition-all
+                      text-navy-900 placeholder-slate-300
+                      ${errors.email
                         ? 'border-red-400 bg-red-50'
                         : 'border-slate-200 bg-slate-50 focus:border-amber-400 focus:bg-white'
-                    }`}
+                      }
+                    `}
                     {...register('email')}
                   />
                 </div>
@@ -113,39 +135,29 @@ export default function OperatorLogin() {
                 )}
               </div>
 
-              {/* Password + forgot */}
+              {/* Password */}
               <div className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-navy-700">
-                    Password
-                  </label>
-                  {/* ── FORGOT PASSWORD LINK ── */}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      navigate('/forgot-password', {
-                        state: { prefillEmail: email, role: 'operator' }
-                      })
-                    }
-                    className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors flex items-center gap-1"
-                  >
-                    <MdHelpOutline size={13} />
-                    Forgot password?
-                  </button>
-                </div>
+                <label className="text-sm font-semibold text-navy-700">
+                  Password
+                </label>
                 <div className="relative">
-                  <MdLock size={18}
+                  <MdLock
+                    size={18}
                     className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
                   />
                   <input
                     type="password"
                     autoComplete="current-password"
                     placeholder="Your password"
-                    className={`w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm font-medium border-2 outline-none transition-all text-navy-900 placeholder-slate-300 ${
-                      errors.password
+                    className={`
+                      w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm font-medium
+                      border-2 outline-none transition-all
+                      text-navy-900 placeholder-slate-300
+                      ${errors.password
                         ? 'border-red-400 bg-red-50'
                         : 'border-slate-200 bg-slate-50 focus:border-amber-400 focus:bg-white'
-                    }`}
+                      }
+                    `}
                     {...register('password')}
                   />
                 </div>
@@ -156,6 +168,7 @@ export default function OperatorLogin() {
                 )}
               </div>
 
+              {/* Submit */}
               <motion.button
                 type="submit"
                 disabled={isPending}
@@ -172,13 +185,29 @@ export default function OperatorLogin() {
                 )}
               </motion.button>
             </form>
+            {/* ─── END FORM ─── */}
+
+            {/* ── Forgot password — completely outside the form ── */}
+            <div className="flex justify-center mt-4">
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className="flex items-center gap-1.5 text-sm font-semibold text-amber-600 hover:text-amber-700 transition-colors"
+              >
+                <MdHelpOutline size={15} />
+                Forgot your password?
+              </button>
+            </div>
 
             {/* Info note */}
             <div className="mt-5 flex items-start gap-2.5 p-3.5 bg-amber-50 rounded-2xl border border-amber-100">
-              <MdSecurity size={15} className="text-amber-500 mt-0.5 flex-shrink-0" />
+              <MdSecurity
+                size={15}
+                className="text-amber-500 mt-0.5 flex-shrink-0"
+              />
               <p className="text-amber-700 text-xs font-medium leading-relaxed">
                 Operator accounts are created by your station administrator.
-                Contact your manager if you need access or have forgotten your credentials.
+                Contact your manager if you need access.
               </p>
             </div>
           </div>

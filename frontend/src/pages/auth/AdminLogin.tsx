@@ -29,7 +29,12 @@ export default function AdminLogin() {
   const { toast } = useToast()
   const { login } = useAuth()
 
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<Form>({
+  const {
+    register,
+    handleSubmit,
+    getValues,
+    formState: { errors }
+  } = useForm<Form>({
     resolver: zodResolver(schema),
   })
 
@@ -40,10 +45,21 @@ export default function AdminLogin() {
       navigate('/admin/dashboard')
     },
     onError: (err: any) =>
-      toast(err.response?.data?.message || 'Access denied', 'error'),
+      toast(
+        err.response?.data?.message || 'Access denied',
+        'error'
+      ),
   })
 
-  const email = watch('email', '')
+  // ── Separate navigate handler — NOT inside form ──────────
+  const handleForgotPassword = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const email = getValues('email')
+    navigate('/forgot-password', {
+      state: { prefillEmail: email || '' }
+    })
+  }
 
   return (
     <div
@@ -55,8 +71,6 @@ export default function AdminLogin() {
 
       {/* ── Left info panel (desktop) ────────────── */}
       <div className="hidden lg:flex flex-col justify-between w-1/2 xl:w-3/5 px-14 py-12">
-
-        {/* Logo */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-green-500 flex items-center justify-center">
             <span className="text-white font-black text-base">W</span>
@@ -71,7 +85,6 @@ export default function AdminLogin() {
           </div>
         </div>
 
-        {/* Hero */}
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-green-400 mb-5">
             Platform management
@@ -84,7 +97,6 @@ export default function AdminLogin() {
             Revenue analytics, reconciliation reports, audit trails,
             user management and kiosk oversight — all in one console.
           </p>
-
           <div className="flex flex-col gap-3">
             {[
               { icon: <MdSecurity size={18} />, text: 'Full payment audit trail with HMAC verification' },
@@ -112,6 +124,7 @@ export default function AdminLogin() {
 
           {/* Mobile back */}
           <button
+            type="button"
             onClick={() => navigate('/login')}
             className="flex items-center gap-1.5 text-white/40 text-sm font-medium mb-8 hover:text-white/60 transition-colors lg:hidden"
           >
@@ -125,9 +138,7 @@ export default function AdminLogin() {
             {/* Dark header */}
             <div
               className="px-8 pt-8 pb-6"
-              style={{
-                background: 'linear-gradient(135deg, #0b1420, #1a2f45)'
-              }}
+              style={{ background: 'linear-gradient(135deg, #0b1420, #1a2f45)' }}
             >
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
@@ -159,7 +170,8 @@ export default function AdminLogin() {
                     Email address
                   </label>
                   <div className="relative">
-                    <MdEmail size={18}
+                    <MdEmail
+                      size={18}
                       className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
                     />
                     <input
@@ -167,11 +179,15 @@ export default function AdminLogin() {
                       autoFocus
                       autoComplete="email"
                       placeholder="admin@wakacharge.com"
-                      className={`w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm font-medium border-2 outline-none transition-all text-navy-900 placeholder-slate-300 ${
-                        errors.email
+                      className={`
+                        w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm font-medium
+                        border-2 outline-none transition-all
+                        text-navy-900 placeholder-slate-300
+                        ${errors.email
                           ? 'border-red-400 bg-red-50'
                           : 'border-slate-200 bg-slate-50 focus:border-navy-500 focus:bg-white'
-                      }`}
+                        }
+                      `}
                       {...register('email')}
                     />
                   </div>
@@ -182,39 +198,29 @@ export default function AdminLogin() {
                   )}
                 </div>
 
-                {/* Password + forgot */}
+                {/* Password */}
                 <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-semibold text-navy-700">
-                      Password
-                    </label>
-                    {/* ── FORGOT PASSWORD LINK ── */}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate('/forgot-password', {
-                          state: { prefillEmail: email, role: 'admin' }
-                        })
-                      }
-                      className="text-xs font-semibold text-slate-500 hover:text-navy-700 transition-colors flex items-center gap-1"
-                    >
-                      <MdHelpOutline size={13} />
-                      Forgot password?
-                    </button>
-                  </div>
+                  <label className="text-sm font-semibold text-navy-700">
+                    Password
+                  </label>
                   <div className="relative">
-                    <MdLock size={18}
+                    <MdLock
+                      size={18}
                       className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
                     />
                     <input
                       type="password"
                       autoComplete="current-password"
                       placeholder="••••••••"
-                      className={`w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm font-medium border-2 outline-none transition-all text-navy-900 placeholder-slate-300 ${
-                        errors.password
+                      className={`
+                        w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm font-medium
+                        border-2 outline-none transition-all
+                        text-navy-900 placeholder-slate-300
+                        ${errors.password
                           ? 'border-red-400 bg-red-50'
                           : 'border-slate-200 bg-slate-50 focus:border-navy-500 focus:bg-white'
-                      }`}
+                        }
+                      `}
                       {...register('password')}
                     />
                   </div>
@@ -225,6 +231,7 @@ export default function AdminLogin() {
                   )}
                 </div>
 
+                {/* Submit */}
                 <motion.button
                   type="submit"
                   disabled={isPending}
@@ -241,10 +248,26 @@ export default function AdminLogin() {
                   )}
                 </motion.button>
               </form>
+              {/* ─── END FORM ─── */}
+
+              {/* ── Forgot password — completely outside the form ── */}
+              <div className="flex justify-center mt-4">
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-navy-700 transition-colors"
+                >
+                  <MdHelpOutline size={15} />
+                  Forgot your password?
+                </button>
+              </div>
 
               {/* Security note */}
               <div className="mt-5 flex items-start gap-2.5 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
-                <MdSecurity size={15} className="text-slate-400 mt-0.5 flex-shrink-0" />
+                <MdSecurity
+                  size={15}
+                  className="text-slate-400 mt-0.5 flex-shrink-0"
+                />
                 <p className="text-slate-400 text-xs leading-relaxed">
                   This portal is restricted to authorized administrators.
                   All login attempts and actions are monitored and logged.
@@ -253,6 +276,7 @@ export default function AdminLogin() {
 
               <p className="text-center mt-5">
                 <button
+                  type="button"
                   onClick={() => navigate('/login')}
                   className="text-sm text-slate-400 hover:text-slate-600 transition-colors"
                 >

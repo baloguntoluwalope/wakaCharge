@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -21,7 +21,11 @@ type Form = z.infer<typeof schema>
 
 export default function ForgotPassword() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { toast } = useToast()
+
+  // Read prefilled email from navigation state (passed from login pages)
+  const prefillEmail = (location.state?.prefillEmail as string) || ''
 
   const {
     register,
@@ -30,6 +34,9 @@ export default function ForgotPassword() {
     formState: { errors }
   } = useForm<Form>({
     resolver: zodResolver(schema),
+    defaultValues: {
+      email: prefillEmail, // pre-fills if coming from a login page
+    },
   })
 
   const email = watch('email', '')

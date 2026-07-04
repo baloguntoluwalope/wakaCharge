@@ -1,7 +1,10 @@
 import axios from 'axios'
 import type { AxiosError, AxiosInstance } from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://wakacharge.onrender.com'
+// Explicit fallback so the app never breaks even without .env
+const BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  'https://wakacharge.onrender.com'
 
 class ApiClient {
   private instance: AxiosInstance
@@ -10,45 +13,51 @@ class ApiClient {
     this.instance = axios.create({
       baseURL: `${BASE_URL}/api/v1`,
       timeout: 30000,
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      }
     })
 
-    this.instance.interceptors.request.use((config) => {
-      const token = localStorage.getItem('waka_token')
-      if (token) config.headers.Authorization = `Bearer ${token}`
-      return config
-    })
+    this.instance.interceptors.request.use(
+      (config) => {
+        const token = localStorage.getItem('waka_token')
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`
+        }
+        return config
+      },
+      (error) => Promise.reject(error)
+    )
 
     this.instance.interceptors.response.use(
-      (res) => res,
+      (response) => response,
       (error: AxiosError) => {
+        // Log every API error for debugging
+        console.error(
+          '❌ API Error:',
+          error.config?.url,
+          error.response?.status,
+          (error.response?.data as any)?.message || error.message
+        )
+
         if (error.response?.status === 401) {
           const path = window.location.pathname
-          if (!path.startsWith('/login') && !path.startsWith('/register') && path !== '/') {
+          const publicPaths = [
+            '/', '/login', '/register',
+            '/verify-otp', '/complete-profile',
+            '/forgot-password', '/reset-verify-otp', '/reset-password',
+            '/operator-login', '/admin-login'
+          ]
+          const isPublic = publicPaths.some(p => path.startsWith(p))
+
+          if (!isPublic) {
             localStorage.removeItem('waka_token')
             localStorage.removeItem('waka_user')
             window.location.href = '/login'
           }
         }
-        
-        // Handle 404 errors
-        if (error.response?.status === 404) {
-          console.warn('Resource not found:', error.config?.url)
-          error.message = 'Resource not found'
-        }
-        
-        // Handle 5xx errors (server issues)
-        if (error.response?.status && error.response.status >= 500) {
-          console.error('Server error:', error.config?.url, error.response.status)
-          error.message = 'Server error. Please try again later.'
-        }
-        
-        // Handle network/timeout errors
-        if (!error.response) {
-          console.error('Network error or timeout')
-          error.message = 'Connection failed. Please check your internet.'
-        }
-        
+
         return Promise.reject(error)
       }
     )

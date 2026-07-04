@@ -27,7 +27,12 @@ export default function Login() {
   const { toast } = useToast()
   const { login } = useAuth()
 
-  const { register, handleSubmit, formState: { errors } } = useForm<Form>({
+  const {
+    register,
+    handleSubmit,
+    getValues,
+    formState: { errors }
+  } = useForm<Form>({
     resolver: zodResolver(schema),
   })
 
@@ -38,8 +43,22 @@ export default function Login() {
       navigate('/dashboard')
     },
     onError: (err: any) =>
-      toast(err.response?.data?.message || 'Invalid email or password', 'error'),
+      toast(
+        err.response?.data?.message || 'Invalid email or password',
+        'error'
+      ),
   })
+
+  // ── Separate handler for forgot password ────────────────
+  // NOT inside the form — prevents any form submission
+  const handleForgotPassword = () => {
+    const email = getValues('email')
+    navigate('/forgot-password', {
+      state: { prefillEmail: email || '' }
+    })
+  }
+
+  const onSubmit = (d: Form) => mutate(d)
 
   return (
     <div className="min-h-screen bg-white flex flex-col lg:flex-row">
@@ -51,7 +70,6 @@ export default function Login() {
           background: 'linear-gradient(160deg, #060b12 0%, #0b1420 60%, #0f2318 100%)'
         }}
       >
-        {/* Logo */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-green-500 flex items-center justify-center">
             <span className="text-white font-black text-base">W</span>
@@ -61,7 +79,6 @@ export default function Login() {
           </span>
         </div>
 
-        {/* Hero copy */}
         <div>
           <p className="text-5xl font-black text-white leading-tight mb-6">
             Power to learn.<br />
@@ -116,17 +133,17 @@ export default function Login() {
             </p>
           </div>
 
-          <form
-            onSubmit={handleSubmit(d => mutate(d))}
-            className="flex flex-col gap-4"
-          >
+          {/* ─── FORM ──────────────────────────────── */}
+          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+
             {/* Email */}
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-semibold text-navy-700">
                 Email address
               </label>
               <div className="relative">
-                <MdEmail size={18}
+                <MdEmail
+                  size={18}
                   className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
                 />
                 <input
@@ -134,11 +151,15 @@ export default function Login() {
                   autoFocus
                   autoComplete="email"
                   placeholder="you@lasu.edu.ng"
-                  className={`w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm font-medium border-2 outline-none transition-all text-navy-900 placeholder-slate-300 ${
-                    errors.email
+                  className={`
+                    w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm font-medium
+                    border-2 outline-none transition-all
+                    text-navy-900 placeholder-slate-300
+                    ${errors.email
                       ? 'border-red-400 bg-red-50'
                       : 'border-slate-200 bg-slate-50 focus:border-green-500 focus:bg-white'
-                  }`}
+                    }
+                  `}
                   {...register('email')}
                 />
               </div>
@@ -149,35 +170,31 @@ export default function Login() {
               )}
             </div>
 
-            {/* Password */}
+            {/* Password row with forgot link */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-semibold text-navy-700">
                   Password
                 </label>
-                {/* ── FORGOT PASSWORD LINK ── */}
-                <button
-                  type="button"
-                  onClick={() => navigate('/forgot-password')}
-                  className="text-xs font-semibold text-green-600 hover:text-green-700 transition-colors flex items-center gap-1"
-                >
-                  <MdHelpOutline size={13} />
-                  Forgot password?
-                </button>
               </div>
               <div className="relative">
-                <MdLock size={18}
+                <MdLock
+                  size={18}
                   className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
                 />
                 <input
                   type="password"
                   autoComplete="current-password"
                   placeholder="Your password"
-                  className={`w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm font-medium border-2 outline-none transition-all text-navy-900 placeholder-slate-300 ${
-                    errors.password
+                  className={`
+                    w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm font-medium
+                    border-2 outline-none transition-all
+                    text-navy-900 placeholder-slate-300
+                    ${errors.password
                       ? 'border-red-400 bg-red-50'
                       : 'border-slate-200 bg-slate-50 focus:border-green-500 focus:bg-white'
-                  }`}
+                    }
+                  `}
                   {...register('password')}
                 />
               </div>
@@ -188,11 +205,28 @@ export default function Login() {
               )}
             </div>
 
+            {/* ── Forgot password — OUTSIDE form controls, uses navigate directly ── */}
+            <div className="flex justify-end -mt-1">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  handleForgotPassword()
+                }}
+                className="flex items-center gap-1 text-xs font-semibold text-green-600 hover:text-green-700 transition-colors"
+              >
+                <MdHelpOutline size={13} />
+                Forgot password?
+              </button>
+            </div>
+
+            {/* Submit */}
             <motion.button
               type="submit"
               disabled={isPending}
               whileTap={{ scale: 0.98 }}
-              className="w-full py-3.5 rounded-2xl bg-green-500 text-white font-black text-sm hover:bg-green-400 transition-all disabled:opacity-40 flex items-center justify-center gap-2 mt-2"
+              className="w-full py-3.5 rounded-2xl bg-green-500 text-white font-black text-sm hover:bg-green-400 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
             >
               {isPending ? (
                 <>
@@ -204,6 +238,7 @@ export default function Login() {
               )}
             </motion.button>
           </form>
+          {/* ─── END FORM ───────────────────────────── */}
 
           {/* Divider */}
           <div className="relative my-6">
@@ -220,6 +255,7 @@ export default function Login() {
           {/* Portal links */}
           <div className="flex flex-col gap-2">
             <button
+              type="button"
               onClick={() => navigate('/operator-login')}
               className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
             >
@@ -230,6 +266,7 @@ export default function Login() {
               <MdArrowForward size={16} className="text-slate-300" />
             </button>
             <button
+              type="button"
               onClick={() => navigate('/admin-login')}
               className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
             >
@@ -244,6 +281,7 @@ export default function Login() {
           <p className="text-sm text-slate-500 text-center mt-6">
             New to Waka?{' '}
             <button
+              type="button"
               onClick={() => navigate('/register')}
               className="font-semibold text-green-600 hover:text-green-700 transition-colors"
             >
