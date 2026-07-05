@@ -11,6 +11,7 @@ import { paymentsApi } from '../../api/payments.api'
 import { rentalsApi } from '../../api/rentals.api'
 import { notificationsApi } from '../../api/notifications.api'
 import { WalletCard, Card, Skeleton } from '../../components/ui/Card'
+import { EmptyWallet } from '../../components/student/EmptyWallet'
 import { Badge, StatusPill } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { useCountdown } from '../../hooks/useCountdown'
@@ -148,9 +149,15 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        {/* Wallet Card with show/hide balance toggle */}
+        {/* Wallet Card — empty state, or funded state with balance toggle */}
         {walletLoading ? (
           <Skeleton className="h-48" />
+        ) : (wallet?.walletBalance || 0) === 0 ? (
+          <EmptyWallet
+            virtualAccountNumber={wallet?.virtualAccount?.accountNumber}
+            virtualAccountBank={wallet?.virtualAccount?.bankName}
+            userName={user?.name}
+          />
         ) : (
           <WalletCard
             balance={wallet?.walletBalance || 0}

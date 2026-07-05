@@ -1,6 +1,8 @@
 import { Outlet } from 'react-router-dom'
 import { BottomNav } from '../components/shared/BottomNav'
 
+import { InstallPWABanner } from '../components/student/InstallPWA'
+
 export const StudentLayout = () => {
   return (
     <div className="app-shell bg-slate-50">
@@ -8,6 +10,7 @@ export const StudentLayout = () => {
         <Outlet />
       </div>
       <BottomNav />
+      <InstallPWABanner />
     </div>
   )
 }

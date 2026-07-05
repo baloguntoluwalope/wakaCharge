@@ -12,6 +12,7 @@ import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { useToast } from '../../components/ui/Toast'
+import { useConfirm } from '../../hooks/useConfirm'
 import { CAMPUSES, TRUST_LEVELS } from '../../theme/tokens'
 import { formatCurrency } from '../../utils'
 import { useForm } from 'react-hook-form'
@@ -221,6 +222,7 @@ export default function AdminUsers() {
   const [showCreateOperator, setShowCreateOperator] = useState(false)
   const { toast } = useToast()
   const qc = useQueryClient()
+  const { confirm, Dialog } = useConfirm()
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-users', role, campus, page],
@@ -257,6 +259,30 @@ export default function AdminUsers() {
     onError: () => toast('Failed to activate', 'error')
   })
 
+  const handleDeactivate = async (userId: string, name: string) => {
+    const ok = await confirm({
+      title: 'Deactivate account',
+      message: `Are you sure you want to deactivate ${name}'s account?`,
+      detail: 'They will be immediately signed out and unable to log back in until reactivated.',
+      confirmLabel: 'Yes, deactivate',
+      cancelLabel: 'Keep account active',
+      variant: 'danger',
+    })
+    if (ok) deactivate(userId)
+  }
+
+  const handleActivate = async (userId: string, name: string) => {
+    const ok = await confirm({
+      title: 'Reactivate account',
+      message: `Reactivate ${name}'s account?`,
+      detail: 'They will be able to log in again immediately.',
+      confirmLabel: 'Yes, reactivate',
+      cancelLabel: 'Cancel',
+      variant: 'default',
+    })
+    if (ok) activate(userId)
+  }
+
   const users = (data as any)?.users || []
   const total = (data as any)?.total || 0
 
@@ -269,6 +295,8 @@ export default function AdminUsers() {
 
   return (
     <div className="p-6 max-w-6xl">
+      {Dialog}
+
       <CreateOperatorModal
         open={showCreateOperator}
         onClose={() => setShowCreateOperator(false)}
@@ -413,14 +441,14 @@ export default function AdminUsers() {
                           {u.role !== 'admin' && (
                             u.isActive ? (
                               <button
-                                onClick={() => deactivate(u._id)}
+                                onClick={() => handleDeactivate(u._id, u.name)}
                                 className="text-xs font-semibold text-red-500 hover:text-red-700 transition-colors"
                               >
                                 Deactivate
                               </button>
                             ) : (
                               <button
-                                onClick={() => activate(u._id)}
+                                onClick={() => handleActivate(u._id, u.name)}
                                 className="text-xs font-semibold text-green-600 hover:text-green-800 transition-colors"
                               >
                                 Activate

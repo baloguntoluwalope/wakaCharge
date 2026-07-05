@@ -13,6 +13,8 @@ import {
   MdSecurity,
   MdBarChart,
   MdPeople,
+  MdArrowForward,
+  MdVerifiedUser,
 } from 'react-icons/md'
 import { authApi } from '../../api/auth.api'
 import { useToast } from '../../components/ui/Toast'
@@ -70,8 +72,18 @@ export default function AdminLogin() {
     >
 
       {/* ── Left info panel (desktop) ────────────── */}
-      <div className="hidden lg:flex flex-col justify-between w-1/2 xl:w-3/5 px-14 py-12">
-        <div className="flex items-center gap-3">
+      <div className="hidden lg:flex flex-col justify-between w-1/2 xl:w-3/5 px-14 py-12 relative overflow-hidden">
+        {/* Decorative glow */}
+        <div
+          className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-10 pointer-events-none"
+          style={{ background: 'radial-gradient(circle, #1db954, transparent)', transform: 'translate(30%, -30%)' }}
+        />
+        <div
+          className="absolute bottom-0 left-0 w-72 h-72 rounded-full opacity-10 pointer-events-none"
+          style={{ background: 'radial-gradient(circle, #f59e0b, transparent)', transform: 'translate(-30%, 30%)' }}
+        />
+
+        <div className="relative flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-green-500 flex items-center justify-center">
             <span className="text-white font-black text-base">W</span>
           </div>
@@ -85,7 +97,7 @@ export default function AdminLogin() {
           </div>
         </div>
 
-        <div>
+        <div className="relative">
           <p className="text-xs font-bold uppercase tracking-widest text-green-400 mb-5">
             Platform management
           </p>
@@ -113,7 +125,7 @@ export default function AdminLogin() {
           </div>
         </div>
 
-        <p className="text-white/20 text-xs">
+        <p className="relative text-white/20 text-xs">
           © 2026 Waka Charge · Restricted access · All sessions monitored
         </p>
       </div>
@@ -137,10 +149,14 @@ export default function AdminLogin() {
 
             {/* Dark header */}
             <div
-              className="px-8 pt-8 pb-6"
-              style={{ background: 'linear-gradient(135deg, #0b1420, #1a2f45)' }}
+              className="relative px-8 pt-8 pb-7 overflow-hidden"
+              style={{ background: 'linear-gradient(135deg, #0b1420, #16283d)' }}
             >
-              <div className="flex items-center gap-3 mb-4">
+              <div
+                className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-20 pointer-events-none"
+                style={{ background: 'radial-gradient(circle, #f59e0b, transparent)', transform: 'translate(30%, -40%)' }}
+              />
+              <div className="relative flex items-center gap-3 mb-4">
                 <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
                   <MdAdminPanelSettings size={22} className="text-amber-400" />
                 </div>
@@ -153,9 +169,12 @@ export default function AdminLogin() {
                   </p>
                 </div>
               </div>
-              <p className="text-white/40 text-sm">
-                Platform management access only. All actions are logged.
-              </p>
+              <div className="relative flex items-center gap-1.5">
+                <MdVerifiedUser size={13} className="text-white/30" />
+                <p className="text-white/40 text-xs">
+                  Platform management access only. All actions are logged.
+                </p>
+              </div>
             </div>
 
             {/* Form */}
@@ -185,7 +204,7 @@ export default function AdminLogin() {
                         text-navy-900 placeholder-slate-300
                         ${errors.email
                           ? 'border-red-400 bg-red-50'
-                          : 'border-slate-200 bg-slate-50 focus:border-navy-500 focus:bg-white'
+                          : 'border-slate-200 bg-slate-50 focus:border-[#0b1420] focus:bg-white'
                         }
                       `}
                       {...register('email')}
@@ -218,7 +237,7 @@ export default function AdminLogin() {
                         text-navy-900 placeholder-slate-300
                         ${errors.password
                           ? 'border-red-400 bg-red-50'
-                          : 'border-slate-200 bg-slate-50 focus:border-navy-500 focus:bg-white'
+                          : 'border-slate-200 bg-slate-50 focus:border-[#0b1420] focus:bg-white'
                         }
                       `}
                       {...register('password')}
@@ -231,12 +250,13 @@ export default function AdminLogin() {
                   )}
                 </div>
 
-                {/* Submit */}
+                {/* Submit — explicit gradient, guaranteed visible */}
                 <motion.button
                   type="submit"
                   disabled={isPending}
                   whileTap={{ scale: 0.98 }}
-                  className="w-full py-3.5 rounded-2xl bg-navy-900 text-white font-black text-sm hover:bg-navy-800 transition-all disabled:opacity-40 flex items-center justify-center gap-2 mt-1"
+                  className="w-full py-3.5 rounded-2xl text-white font-black text-sm transition-all disabled:opacity-40 flex items-center justify-center gap-2 mt-1 shadow-lg"
+                  style={{ background: 'linear-gradient(135deg, #0b1420, #1a2f45)' }}
                 >
                   {isPending ? (
                     <>
@@ -244,7 +264,10 @@ export default function AdminLogin() {
                       Verifying access…
                     </>
                   ) : (
-                    'Enter console'
+                    <>
+                      Enter console
+                      <MdArrowForward size={16} />
+                    </>
                   )}
                 </motion.button>
               </form>

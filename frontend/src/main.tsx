@@ -3,8 +3,12 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './context/AuthContext'
 import { ToastProvider } from './components/ui/Toast'
+import { initPWA } from './utils/pwa'
 import App from './App'
 import './index.css'
+
+// Init PWA install prompt listener
+initPWA()
 
 const queryClient = new QueryClient({
   defaultOptions: {

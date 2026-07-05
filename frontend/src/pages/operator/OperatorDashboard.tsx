@@ -11,7 +11,8 @@ import {
   MdStore, MdSend,
   MdSupportAgent, MdPriorityHigh,
   MdCheckCircleOutline, MdHistory,
-  MdExpandMore, MdExpandLess
+  MdExpandMore, MdExpandLess,
+  MdClose, MdVpnKey
 } from 'react-icons/md'
 import { operatorApi } from '../../api/operator.api'
 import { authApi } from '../../api/auth.api'
@@ -28,6 +29,145 @@ const NAV = [
   { id: 'complaints',  label: 'Complaints',    icon: <MdSupportAgent size={20} /> },
   { id: 'search',      label: 'Find Student',  icon: <MdSearch size={20} />      },
 ]
+
+// ─── Confirm Return Modal ─────────────────────────────────
+// Requires operator to type the code the student shows them —
+// prevents one-tap confirmation without actually checking anything.
+const ConfirmReturnModal = ({
+  rental,
+  onClose,
+  onConfirm,
+  confirming,
+}: {
+  rental: any | null
+  onClose: () => void
+  onConfirm: (code: string) => void
+  confirming: boolean
+}) => {
+  const [code, setCode] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    setCode('')
+    setError('')
+  }, [rental])
+
+  if (!rental) return null
+
+  const expectedCode = rental.confirmationCode || ''
+
+  const handleConfirm = () => {
+    if (!code.trim()) {
+      setError('Enter the code the student shows you')
+      return
+    }
+    if (code.trim().toUpperCase() !== expectedCode.toUpperCase()) {
+      setError('Code does not match — ask the student to check their app')
+      return
+    }
+    setError('')
+    onConfirm(code.trim())
+  }
+
+  return (
+    <AnimatePresence>
+      {rental && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 8 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+              <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-green-100 flex items-center justify-center">
+                    <MdVpnKey size={18} className="text-green-600" />
+                  </div>
+                  <div>
+                    <p className="font-black text-navy-900 text-base leading-tight">Confirm receipt</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Verify device handed back</p>
+                  </div>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors flex-shrink-0"
+                >
+                  <MdClose size={16} />
+                </button>
+              </div>
+
+              <div className="p-6">
+                {/* Rental summary */}
+                <div className="flex items-center gap-3 mb-5 p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                  <span className="text-2xl flex-shrink-0">{deviceEmoji(rental.deviceType)}</span>
+                  <div className="min-w-0">
+                    <p className="font-bold text-navy-900 text-sm truncate">{rental.userId?.name}</p>
+                    <p className="text-xs text-slate-400">{deviceLabel(rental.deviceType)}</p>
+                  </div>
+                </div>
+
+                <label className="block text-sm font-semibold text-navy-700 mb-1.5">
+                  Ask the student for their return code
+                </label>
+                <input
+                  value={code}
+                  onChange={e => { setCode(e.target.value); setError('') }}
+                  onKeyDown={e => e.key === 'Enter' && handleConfirm()}
+                  placeholder="e.g. AB12CD"
+                  autoFocus
+                  className={`w-full px-4 py-3.5 rounded-2xl text-center text-lg font-mono font-black tracking-[0.3em] uppercase
+                    border-2 outline-none transition-all
+                    text-navy-900 placeholder-slate-300
+                    ${error
+                      ? 'border-red-400 bg-red-50'
+                      : 'border-slate-200 bg-slate-50 focus:border-green-500 focus:bg-white'
+                    }
+                  `}
+                />
+                {error && (
+                  <p className="text-red-500 text-xs font-medium mt-2 flex items-center gap-1">
+                    <span>⚠</span> {error}
+                  </p>
+                )}
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={onClose}
+                    className="flex-1 py-3 rounded-2xl border-2 border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleConfirm}
+                    disabled={confirming}
+                    className="flex-1 py-3 rounded-2xl bg-green-500 text-white text-sm font-black hover:bg-green-400 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+                  >
+                    {confirming ? (
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <><MdCheckCircle size={16} /> Confirm</>
+                    )}
+                  </motion.button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
 
 // ─── Layout ──────────────────────────────────────────────
 export default function OperatorDashboard() {
@@ -380,49 +520,55 @@ const DashboardTab = ({
 const QuickConfirmCard = ({ rental }: { rental: any }) => {
   const { toast } = useToast()
   const qc = useQueryClient()
-  const [confirming, setConfirming] = useState(false)
+  const [showModal, setShowModal] = useState(false)
 
-  const { mutate } = useMutation({
-    mutationFn: () => operatorApi.confirmReturn(rental._id),
+  const { mutate, isPending: confirming } = useMutation({
+    mutationFn: (code: string) => operatorApi.confirmReturn(rental._id, code),
     onSuccess: () => {
       toast(`Confirmed return for ${rental.userId?.name}`, 'success')
       qc.invalidateQueries({ queryKey: ['operator-dashboard'] })
+      setShowModal(false)
     },
     onError: (err: any) =>
-      toast(err.response?.data?.message || 'Failed', 'error'),
-    onSettled: () => setConfirming(false),
+      toast(err.response?.data?.message || 'Failed — check the code and try again', 'error'),
   })
 
   return (
-    <div className={`bg-white rounded-2xl border p-4 flex items-center gap-4 ${
-      rental.status === 'overdue' ? 'border-amber-200' : 'border-slate-100'
-    }`}>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-lg">{deviceEmoji(rental.deviceType)}</span>
-          <p className="font-bold text-navy-900 text-sm">{rental.userId?.name}</p>
-          <StatusPill status={rental.status} />
+    <>
+      <ConfirmReturnModal
+        rental={showModal ? rental : null}
+        onClose={() => setShowModal(false)}
+        onConfirm={(code) => mutate(code)}
+        confirming={confirming}
+      />
+      <div className={`bg-white rounded-2xl border p-4 flex items-center gap-4 ${
+        rental.status === 'overdue' ? 'border-amber-200' : 'border-slate-100'
+      }`}>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">{deviceEmoji(rental.deviceType)}</span>
+            <p className="font-bold text-navy-900 text-sm">{rental.userId?.name}</p>
+            <StatusPill status={rental.status} />
+          </div>
+          <p className="text-xs text-slate-400">
+            {deviceLabel(rental.deviceType)}
+          </p>
         </div>
-        <p className="text-xs text-slate-400">
-          {deviceLabel(rental.deviceType)} · Code:{' '}
-          <span className="font-mono font-bold text-amber-600">{rental.confirmationCode}</span>
-        </p>
+        {rental.operatorConfirmed ? (
+          <div className="flex items-center gap-1.5 text-green-600 text-xs font-semibold flex-shrink-0">
+            <MdCheckCircle size={16} />
+            Confirmed
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex-shrink-0 px-3 py-2 rounded-xl bg-green-500 text-white text-xs font-bold hover:bg-green-400 transition-all"
+          >
+            ✓ Confirm
+          </button>
+        )}
       </div>
-      {rental.operatorConfirmed ? (
-        <div className="flex items-center gap-1.5 text-green-600 text-xs font-semibold flex-shrink-0">
-          <MdCheckCircle size={16} />
-          Confirmed
-        </div>
-      ) : (
-        <button
-          onClick={() => { setConfirming(true); mutate() }}
-          disabled={confirming}
-          className="flex-shrink-0 px-3 py-2 rounded-xl bg-green-500 text-white text-xs font-bold hover:bg-green-400 transition-all disabled:opacity-40"
-        >
-          {confirming ? '…' : '✓ Confirm'}
-        </button>
-      )}
-    </div>
+    </>
   )
 }
 
@@ -494,74 +640,75 @@ const RentalsTab = () => {
 const RentalRow = ({ rental }: { rental: any }) => {
   const { toast } = useToast()
   const qc = useQueryClient()
-  const [confirming, setConfirming] = useState(false)
+  const [showModal, setShowModal] = useState(false)
 
-  const { mutate } = useMutation({
-    mutationFn: () => operatorApi.confirmReturn(rental._id),
+  const { mutate, isPending: confirming } = useMutation({
+    mutationFn: (code: string) => operatorApi.confirmReturn(rental._id, code),
     onSuccess: () => {
       toast('Return confirmed', 'success')
       qc.invalidateQueries({ queryKey: ['operator-active-rentals'] })
+      setShowModal(false)
     },
-    onError: (err: any) => toast(err.response?.data?.message || 'Failed', 'error'),
-    onSettled: () => setConfirming(false),
+    onError: (err: any) => toast(err.response?.data?.message || 'Failed — check the code and try again', 'error'),
   })
 
   const isOverdue = rental.status === 'overdue'
 
   return (
-    <div className={`bg-white rounded-2xl border p-5 ${isOverdue ? 'border-amber-200 bg-amber-50/30' : 'border-slate-100'}`}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-xl flex-shrink-0 ${
-            isOverdue ? 'bg-amber-100' : 'bg-green-100'
-          }`}>
-            {deviceEmoji(rental.deviceType)}
+    <>
+      <ConfirmReturnModal
+        rental={showModal ? rental : null}
+        onClose={() => setShowModal(false)}
+        onConfirm={(code) => mutate(code)}
+        confirming={confirming}
+      />
+      <div className={`bg-white rounded-2xl border p-5 ${isOverdue ? 'border-amber-200 bg-amber-50/30' : 'border-slate-100'}`}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-xl flex-shrink-0 ${
+              isOverdue ? 'bg-amber-100' : 'bg-green-100'
+            }`}>
+              {deviceEmoji(rental.deviceType)}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <p className="font-bold text-navy-900">{rental.userId?.name}</p>
+                <StatusPill status={rental.status} />
+              </div>
+              <p className="text-xs text-slate-500">{deviceLabel(rental.deviceType)}</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                <MdAccessTime size={11} className="inline mr-0.5" />
+                Return by {formatDateTime(rental.expectedReturnTime)}
+              </p>
+            </div>
           </div>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <p className="font-bold text-navy-900">{rental.userId?.name}</p>
-              <StatusPill status={rental.status} />
-            </div>
-            <p className="text-xs text-slate-500">{deviceLabel(rental.deviceType)}</p>
-            <p className="text-xs text-slate-400 mt-0.5">
-              <MdAccessTime size={11} className="inline mr-0.5" />
-              Return by {formatDateTime(rental.expectedReturnTime)}
-            </p>
-            <div className="flex items-center gap-2 mt-2">
-              <p className="text-xs text-slate-400">Code:</p>
-              <span className="font-mono font-black text-amber-500 text-sm tracking-widest">
-                {rental.confirmationCode}
-              </span>
-            </div>
+
+          <div className="flex-shrink-0">
+            {rental.operatorConfirmed ? (
+              <div className="flex items-center gap-1.5 text-green-600 text-xs font-bold bg-green-50 border border-green-200 px-3 py-2 rounded-xl">
+                <MdCheckCircle size={14} />
+                Confirmed
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowModal(true)}
+                className="px-4 py-2 rounded-xl bg-green-500 text-white text-xs font-bold hover:bg-green-400 transition-all"
+              >
+                Confirm receipt
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="flex-shrink-0">
-          {rental.operatorConfirmed ? (
-            <div className="flex items-center gap-1.5 text-green-600 text-xs font-bold bg-green-50 border border-green-200 px-3 py-2 rounded-xl">
-              <MdCheckCircle size={14} />
-              Confirmed
-            </div>
-          ) : (
-            <button
-              onClick={() => { setConfirming(true); mutate() }}
-              disabled={confirming}
-              className="px-4 py-2 rounded-xl bg-green-500 text-white text-xs font-bold hover:bg-green-400 transition-all disabled:opacity-40"
-            >
-              {confirming ? '…' : 'Confirm receipt'}
-            </button>
-          )}
-        </div>
+        {/* Student contact */}
+        {rental.userId?.phone && (
+          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-400">
+            <MdPerson size={13} />
+            {rental.userId.email} · {rental.userId.phone}
+          </div>
+        )}
       </div>
-
-      {/* Student contact */}
-      {rental.userId?.phone && (
-        <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-400">
-          <MdPerson size={13} />
-          {rental.userId.email} · {rental.userId.phone}
-        </div>
-      )}
-    </div>
+    </>
   )
 }
 
