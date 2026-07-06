@@ -7,6 +7,7 @@ const {
 const {
   protect, authorize
 } = require('../middleware/auth.middleware')
+const { cacheMiddleware } = require('../services/cache.service')
 
 /**
  * @swagger
@@ -27,7 +28,12 @@ const {
  *       200:
  *         description: List of stations
  */
-router.get('/', protect, getStations)
+router.get(
+  '/',
+  protect,
+  cacheMiddleware(300, (req) => `stations:${req.user.campus || req.query.campus || 'all'}`),
+  getStations
+)
 
 /**
  * @swagger
@@ -71,7 +77,12 @@ router.post('/scan', protect, scanQR)
  *       200:
  *         description: Station details and inventory
  */
-router.get('/:id', protect, getStation)
+router.get(
+  '/:id',
+  protect,
+  cacheMiddleware(120, (req) => `station:${req.params.id}`),
+  getStation
+)
 
 /**
  * @swagger

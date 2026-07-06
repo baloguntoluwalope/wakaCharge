@@ -3,6 +3,7 @@ import {
   useEffect, useCallback, useMemo
 } from 'react'
 import type { ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { User } from '../types'
 import { authApi } from '../api/auth.api'
 
@@ -16,12 +17,12 @@ interface AuthContextType {
   isStudent: boolean
   isOperator: boolean
   isAdmin: boolean
-  
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const queryClient = useQueryClient()
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -34,7 +35,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         setToken(storedToken)
         setUser(JSON.parse(storedUser))
-        
+
         // Note: Make sure your Axios instance registers storedToken here if needed!
         authApi.getProfile()
           .then(res => {
@@ -60,7 +61,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('waka_user', JSON.stringify(newUser))
     setToken(newToken)
     setUser(newUser)
-  }, [])
+
+    // Immediately prefetch dashboard data in background
+    // so when user lands on dashboard it's instant
+    if (newUser.role === 'student') {
+      import('../utils/prefetch').then(({ prefetchCommonData }) => {
+        prefetchCommonData(queryClient)
+      })
+    }
+  }, [queryClient])
 
   const logout = useCallback(() => {
     localStorage.removeItem('waka_token')

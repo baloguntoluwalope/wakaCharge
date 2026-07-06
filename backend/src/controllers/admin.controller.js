@@ -23,15 +23,22 @@ const getAdminDashboard = async (req, res) => {
     Rental.countDocuments({ status: 'active' }),
     Rental.countDocuments({ createdAt: { $gte: today } }),
     Rental.countDocuments({ status: 'overdue' }),
-    Transaction.find({ status: 'success', createdAt: { $gte: today } }),
+    // Read-only aggregation inputs — .select() + .lean() since we only need type/amount
+    Transaction.find({ status: 'success', createdAt: { $gte: today } })
+      .select('type amount')
+      .lean(),
     Transaction.find({
       status: 'success',
       createdAt: { $gte: new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000) }
-    }),
+    })
+      .select('type amount')
+      .lean(),
     Transaction.find({
       status: 'success',
       createdAt: { $gte: new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000) }
-    }),
+    })
+      .select('type amount')
+      .lean(),
     Rental.aggregate([
       { $group: { _id: '$deviceType', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
@@ -82,10 +89,11 @@ const getAllUsers = async (req, res) => {
   if (campus) filter.campus = campus
 
   const users = await User.find(filter)
-    .select('-password')
+    .select('name email phone campus role trustScore trustLevel walletBalance isActive createdAt')
     .sort({ createdAt: -1 })
     .skip((page - 1) * limit)
     .limit(Number(limit))
+    .lean()
 
   const total = await User.countDocuments(filter)
 
@@ -270,6 +278,7 @@ const getAllRentals = async (req, res) => {
     .sort({ createdAt: -1 })
     .skip((page - 1) * limit)
     .limit(Number(limit))
+    .lean()
 
   const total = await Rental.countDocuments(filter)
 
@@ -290,7 +299,10 @@ const getRevenue = async (req, res) => {
     status: 'success',
     createdAt: { $gte: startDate },
     type: { $in: ['rental_payment', 'late_fee', 'checkout_payment', 'wallet_funding'] }
-  }).sort({ createdAt: 1 })
+  })
+    .select('type amount createdAt')
+    .sort({ createdAt: 1 })
+    .lean()
 
   const dailyRevenue = {}
   transactions.forEach(t => {
@@ -317,7 +329,8 @@ const deactivateUser = async (req, res) => {
     req.params.id,
     { isActive: false },
     { new: true }
-  )
+  ).select('name').lean()
+
   if (!user) {
     return res.status(404).json({ success: false, message: 'User not found' })
   }
@@ -333,7 +346,8 @@ const activateUser = async (req, res) => {
     req.params.id,
     { isActive: true },
     { new: true }
-  )
+  ).select('name').lean()
+
   if (!user) {
     return res.status(404).json({ success: false, message: 'User not found' })
   }

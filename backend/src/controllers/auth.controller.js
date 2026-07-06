@@ -69,7 +69,10 @@ const sendRegistrationOTP = async (req, res) => {
     })
   }
 
+  // Read-only existence check — .lean() is safe, nothing saved afterward
   const existing = await User.findOne({ email: email.toLowerCase().trim() })
+    .select('_id')
+    .lean()
   if (existing) {
     return res.status(409).json({
       success: false,
@@ -127,11 +130,12 @@ const completeRegistration = async (req, res) => {
     })
   }
 
+  // Read-only check — no .save() on this record, just existence + later delete
   const otpRecord = await OTP.findOne({
     email: email.toLowerCase().trim(),
     type: 'registration',
     isVerified: true
-  })
+  }).lean()
   if (!otpRecord) {
     return res.status(400).json({
       success: false,
@@ -139,16 +143,22 @@ const completeRegistration = async (req, res) => {
     })
   }
 
+  // Existence checks only — .lean() safe
   const existingEmail = await User.findOne({ email: email.toLowerCase().trim() })
+    .select('_id')
+    .lean()
   if (existingEmail) {
     return res.status(409).json({ success: false, message: 'Email already registered.' })
   }
 
   const existingPhone = await User.findOne({ phone })
+    .select('_id')
+    .lean()
   if (existingPhone) {
     return res.status(409).json({ success: false, message: 'Phone number already registered.' })
   }
 
+  // NOT .lean() — this is a full Mongoose doc, mutated via provisionVirtualAccount() and .save()'d
   const user = await User.create({
     name: name.trim(),
     email: email.toLowerCase().trim(),
@@ -188,6 +198,7 @@ const loginStudent = async (req, res) => {
     })
   }
 
+  // NOT .lean() — needs .comparePassword() instance method and .save() below
   const user = await User.findOne({
     email: email.toLowerCase().trim(),
     role: 'student'
@@ -232,9 +243,10 @@ const resendOTP = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid OTP type' })
   }
 
+  // Read-only — only checking createdAt for rate limiting
   const lastOTP = await OTP.findOne({
     email: email.toLowerCase().trim(), type
-  }).sort({ createdAt: -1 })
+  }).sort({ createdAt: -1 }).lean()
 
   if (lastOTP) {
     const secondsSinceLast = (Date.now() - new Date(lastOTP.createdAt).getTime()) / 1000
@@ -267,8 +279,11 @@ const forgotPassword = async (req, res) => {
     })
   }
 
-  // Always respond with 200 — don't reveal if email exists or not
+  // Read-only — only checking isActive/email/name, never saved
   const user = await User.findOne({ email: email.toLowerCase().trim() })
+    .select('email name isActive')
+    .lean()
+
   if (!user) {
     return res.status(200).json({
       success: true,
@@ -283,11 +298,11 @@ const forgotPassword = async (req, res) => {
     })
   }
 
-  // Rate limit — check last reset OTP
+  // Rate limit — read-only
   const lastOTP = await OTP.findOne({
     email: email.toLowerCase().trim(),
     type: 'reset'
-  }).sort({ createdAt: -1 })
+  }).sort({ createdAt: -1 }).lean()
 
   if (lastOTP) {
     const secondsSinceLast = (Date.now() - new Date(lastOTP.createdAt).getTime()) / 1000
@@ -357,12 +372,12 @@ const resetPassword = async (req, res) => {
     })
   }
 
-  // Re-verify OTP before resetting (prevent skipping step 2)
+  // Re-verify OTP before resetting — read-only existence check
   const otpRecord = await OTP.findOne({
     email: email.toLowerCase().trim(),
     type: 'reset',
     isVerified: true
-  })
+  }).lean()
 
   if (!otpRecord) {
     return res.status(400).json({
@@ -371,16 +386,15 @@ const resetPassword = async (req, res) => {
     })
   }
 
+  // NOT .lean() — password gets mutated and .save()'d (hashed via pre-save hook)
   const user = await User.findOne({ email: email.toLowerCase().trim() })
   if (!user) {
     return res.status(404).json({ success: false, message: 'User not found' })
   }
 
-  // Update password — the User model pre-save hook will hash it
   user.password = newPassword
   await user.save()
 
-  // Clean up used OTP
   await OTP.deleteOne({ _id: otpRecord._id })
 
   res.status(200).json({
@@ -408,16 +422,22 @@ const registerAdmin = async (req, res) => {
     })
   }
 
+  // Existence checks only — .lean() safe
   const existingEmail = await User.findOne({ email: email.toLowerCase().trim() })
+    .select('_id')
+    .lean()
   if (existingEmail) {
     return res.status(409).json({ success: false, message: 'Email already registered.' })
   }
 
   const existingPhone = await User.findOne({ phone })
+    .select('_id')
+    .lean()
   if (existingPhone) {
     return res.status(409).json({ success: false, message: 'Phone number already registered.' })
   }
 
+  // NOT .lean() — mutated via provisionVirtualAccount() and .save()'d
   const user = await User.create({
     name: name.trim(),
     email: email.toLowerCase().trim(),
@@ -451,6 +471,7 @@ const loginAdmin = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Please provide email and password' })
   }
 
+  // NOT .lean() — needs .comparePassword() and .save() below
   const user = await User.findOne({
     email: email.toLowerCase().trim(), role: 'admin'
   }).select('+password')
@@ -483,6 +504,7 @@ const loginOperator = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Please provide email and password' })
   }
 
+  // NOT .lean() — needs .comparePassword() and .save() below
   const user = await User.findOne({
     email: email.toLowerCase().trim(), role: 'operator'
   }).select('+password')
@@ -509,7 +531,8 @@ const loginOperator = async (req, res) => {
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
 
 const getProfile = async (req, res) => {
-  const user = await User.findById(req.user._id)
+
+  const user = await User.findById(req.user._id).lean()
   if (!user) {
     return res.status(404).json({ success: false, message: 'User not found' })
   }
@@ -521,7 +544,6 @@ const getProfile = async (req, res) => {
 
   res.status(200).json({ success: true, user: userResponse(user), trustProfile })
 }
-
 const updateProfile = async (req, res) => {
   const { name, phone, studentId } = req.body
   const updates = {}
@@ -534,15 +556,19 @@ const updateProfile = async (req, res) => {
   }
 
   if (phone) {
+    // Existence check only — .lean() safe
     const existingPhone = await User.findOne({ phone, _id: { $ne: req.user._id } })
+      .select('_id')
+      .lean()
     if (existingPhone) {
       return res.status(409).json({ success: false, message: 'Phone number already in use' })
     }
   }
 
+  // Read-only after update — nothing saved afterward, .lean() safe
   const user = await User.findByIdAndUpdate(req.user._id, updates, {
     new: true, runValidators: true
-  })
+  }).lean()
 
   res.status(200).json({
     success: true,
@@ -570,6 +596,7 @@ const changePassword = async (req, res) => {
     })
   }
 
+  // NOT .lean() — needs .comparePassword() and .save() below
   const user = await User.findById(req.user._id).select('+password')
   if (!user) {
     return res.status(404).json({ success: false, message: 'User not found' })

@@ -1,7 +1,5 @@
-import axios from 'axios'
-import type { AxiosError, AxiosInstance } from 'axios'
+import axios, { AxiosError, AxiosInstance } from 'axios'
 
-// Explicit fallback so the app never breaks even without .env
 const BASE_URL =
   import.meta.env.VITE_API_URL ||
   'https://wakacharge.onrender.com'
@@ -12,11 +10,14 @@ class ApiClient {
   constructor() {
     this.instance = axios.create({
       baseURL: `${BASE_URL}/api/v1`,
-      timeout: 30000,
+      timeout: 20000, // 20s — enough for cold start
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-      }
+        'Accept-Encoding': 'gzip, deflate, br',
+      },
+      // Enable response decompression
+      decompress: true,
     })
 
     this.instance.interceptors.request.use(
@@ -33,31 +34,22 @@ class ApiClient {
     this.instance.interceptors.response.use(
       (response) => response,
       (error: AxiosError) => {
-        // Log every API error for debugging
-        console.error(
-          '❌ API Error:',
-          error.config?.url,
-          error.response?.status,
-          (error.response?.data as any)?.message || error.message
-        )
-
         if (error.response?.status === 401) {
           const path = window.location.pathname
           const publicPaths = [
             '/', '/login', '/register',
             '/verify-otp', '/complete-profile',
             '/forgot-password', '/reset-verify-otp', '/reset-password',
-            '/operator-login', '/admin-login'
+            '/operator-login', '/admin-login',
+            '/payment/verify', '/payment/callback',
           ]
           const isPublic = publicPaths.some(p => path.startsWith(p))
-
           if (!isPublic) {
             localStorage.removeItem('waka_token')
             localStorage.removeItem('waka_user')
             window.location.href = '/login'
           }
         }
-
         return Promise.reject(error)
       }
     )

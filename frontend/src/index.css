@@ -108,3 +108,35 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+/* Add to src/index.css inside @layer base or after existing styles */
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    #f1f5f9 0%,
+    #e2e8f0 50%,
+    #f1f5f9 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* Instant tap feedback on mobile */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* GPU-accelerated transforms */
+.will-change-transform {
+  will-change: transform;
+}

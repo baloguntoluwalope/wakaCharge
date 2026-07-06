@@ -24,6 +24,8 @@ const {
   penaliseLateReturn
 } = require('../services/trustscore.service')
 
+const { cache } = require('../services/cache.service')
+
 // ─────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────
@@ -209,6 +211,11 @@ const startRental = async (req, res) => {
 
       await session.commitTransaction()
 
+      // Invalidate caches — wallet unaffected here (RNPL is debt, not deducted),
+      // but station inventory changed (device now rented) and a new pending txn exists
+      cache.invalidate(`station:${stationId}`)
+      cache.invalidate(`txns:${userId}:1`)
+
       // Audit log
       await createAuditLog({
         userId,
@@ -231,6 +238,8 @@ const startRental = async (req, res) => {
         type: 'rental_started',
         rentalId: rental[0]._id
       })
+
+      cache.invalidate(`notifs:${userId}`)
 
       return res.status(201).json({
         success: true,
@@ -375,6 +384,11 @@ const startRental = async (req, res) => {
 
     await session.commitTransaction()
 
+    // Wallet was deducted, a new transaction exists, and station inventory changed
+    cache.invalidate(`wallet:${userId}`)
+    cache.invalidate(`txns:${userId}:1`)
+    cache.invalidate(`station:${stationId}`)
+
     // Post-commit operations
     await createAuditLog({
       userId,
@@ -403,6 +417,8 @@ const startRental = async (req, res) => {
       type: 'rental_started',
       rentalId: rental[0]._id
     })
+
+    cache.invalidate(`notifs:${userId}`)
 
     await sendRentalStartedEmail(
       student.email,
@@ -475,10 +491,12 @@ const getMyRentals = async (req, res) => {
     .sort({ createdAt: -1 })
     .skip((page - 1) * limit)
     .limit(Number(limit))
+    .lean()
 
   const total = await Rental.countDocuments(filter)
 
-  // Auto flag overdue rentals
+  // Auto flag overdue rentals — mutating the plain object here is fine
+  // since it's response-only and was never persisted even before .lean()
   const now = new Date()
   const updated = rentals.map(r => {
     if (r.status === 'active' && now > r.expectedReturnTime) {
@@ -782,6 +800,11 @@ const confirmReturn = async (req, res) => {
 
     await session.commitTransaction()
 
+    // Wallet credited (refund), new transaction(s) exist, station inventory changed
+    cache.invalidate(`wallet:${req.user._id}`)
+    cache.invalidate(`txns:${req.user._id}:1`)
+    cache.invalidate(`station:${rental.stationId}`)
+
     // Update trust score
     let trustUpdate
     try {
@@ -863,6 +886,8 @@ const confirmReturn = async (req, res) => {
       type: 'deposit_refunded',
       rentalId: rental._id
     })
+
+    cache.invalidate(`notifs:${req.user._id}`)
 
     await sendDepositRefundedEmail(
       student.email,
@@ -999,6 +1024,11 @@ const cancelRental = async (req, res) => {
 
     await session.commitTransaction()
 
+    // Wallet credited (full refund), new transaction exists, station inventory changed
+    cache.invalidate(`wallet:${req.user._id}`)
+    cache.invalidate(`txns:${req.user._id}:1`)
+    cache.invalidate(`station:${rental.stationId}`)
+
     await createAuditLog({
       userId: req.user._id,
       role: 'student',
@@ -1029,6 +1059,8 @@ const cancelRental = async (req, res) => {
       type: 'general',
       rentalId: rental._id
     })
+
+    cache.invalidate(`notifs:${req.user._id}`)
 
     res.status(200).json({
       success: true,

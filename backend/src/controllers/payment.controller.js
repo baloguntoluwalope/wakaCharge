@@ -35,6 +35,8 @@ const {
   failIdempotencyKey
 } = require('../services/idempotency.service')
 
+const { cache } = require('../services/cache.service')
+
 // ─────────────────────────────────────────────────
 // GET WALLET BALANCE + VIRTUAL ACCOUNT
 // GET /api/v1/payments/wallet
@@ -95,6 +97,9 @@ const getVirtualAccount = async (req, res) => {
     user.virtualAccountBank = account.bankName
     user.virtualAccountReference = account.accountReference
     await user.save({ validateBeforeSave: false })
+
+    // New virtual account number set — wallet response would now include it
+    cache.invalidate(`wallet:${user._id}`)
 
     await createAuditLog({
       userId: user._id,
@@ -210,6 +215,9 @@ const createCheckout = async (req, res) => {
       }
     })
 
+    // New pending transaction created — invalidate cached history
+    cache.invalidate(`txns:${user._id}:1`)
+
     await createAuditLog({
       userId: user._id,
       role: user.role,
@@ -322,6 +330,10 @@ const verifyCheckoutPayment = async (req, res) => {
 
     await session.commitTransaction()
 
+    // Wallet credited and transaction status flipped to success
+    cache.invalidate(`wallet:${user._id}`)
+    cache.invalidate(`txns:${user._id}:1`)
+
     await createReconciliationRecord({
       reference,
       type: 'checkout_payment',
@@ -354,6 +366,8 @@ const verifyCheckoutPayment = async (req, res) => {
       message: `₦${transaction.amount.toLocaleString()} added to your wallet via checkout.`,
       type: 'wallet_funded'
     })
+
+    cache.invalidate(`notifs:${user._id}`)
 
     await sendWalletFundedEmail(
       user.email, user.name,
@@ -542,6 +556,10 @@ const handleWebhook = async (req, res) => {
 
       await session.commitTransaction()
 
+      // Wallet credited via webhook — invalidate cached balance/history
+      cache.invalidate(`wallet:${user._id}`)
+      cache.invalidate(`txns:${user._id}:1`)
+
       await createReconciliationRecord({
         reference,
         type: 'virtual_account_credit',
@@ -573,6 +591,8 @@ const handleWebhook = async (req, res) => {
         message: `₦${amount.toLocaleString()} added to your wallet.`,
         type: 'wallet_funded'
       })
+
+      cache.invalidate(`notifs:${user._id}`)
 
       await sendWalletFundedEmail(
         user.email, user.name, amount, user.walletBalance
@@ -641,6 +661,10 @@ const handleWebhook = async (req, res) => {
 
       await session.commitTransaction()
 
+      // Wallet credited via webhook — invalidate cached balance/history
+      cache.invalidate(`wallet:${user._id}`)
+      cache.invalidate(`txns:${user._id}:1`)
+
       await createReconciliationRecord({
         reference,
         type: 'checkout_payment',
@@ -672,6 +696,8 @@ const handleWebhook = async (req, res) => {
         message: `₦${amount.toLocaleString()} added to your wallet.`,
         type: 'payment_success'
       })
+
+      cache.invalidate(`notifs:${user._id}`)
 
       await sendWalletFundedEmail(
         user.email, user.name, amount, user.walletBalance

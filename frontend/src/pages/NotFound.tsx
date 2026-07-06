@@ -6,7 +6,7 @@ import {
   MdBatteryUnknown,
   MdSearchOff,
 } from 'react-icons/md'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../../context/AuthContext'
 
 export default function NotFound() {
   const navigate = useNavigate()

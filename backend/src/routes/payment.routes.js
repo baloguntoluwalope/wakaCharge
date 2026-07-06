@@ -21,6 +21,7 @@ const {
 const {
   paymentLimiter
 } = require('../middleware/ratelimit.middleware')
+const { cacheMiddleware } = require('../services/cache.service')
 
 /**
  * @swagger
@@ -87,7 +88,12 @@ const {
  *       401:
  *         description: Not authorized
  */
-router.get('/wallet', protect, getWalletBalance)
+router.get(
+  '/wallet',
+  protect,
+  cacheMiddleware(30, (req) => `wallet:${req.user._id}`),
+  getWalletBalance
+)
 
 // ─────────────────────────────────────────────────
 // VIRTUAL ACCOUNT
@@ -368,27 +374,27 @@ router.get('/status/:reference', protect, pollPaymentStatus)
  *     requestBody:
  *       content:
  *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               event:
- *                 type: string
- *                 enum:
- *                   - virtual_account.credit
- *                   - transfer.success
- *                   - checkout.success
- *                   - payment.success
- *                 example: virtual_account.credit
- *               data:
- *                 type: object
- *                 properties:
- *                   accountNumber:
- *                     type: string
- *                     description: Student virtual account number
- *                   amount:
- *                     type: number
- *                   reference:
- *                     type: string
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 event:
+ *                   type: string
+ *                   enum:
+ *                     - virtual_account.credit
+ *                     - transfer.success
+ *                     - checkout.success
+ *                     - payment.success
+ *                   example: virtual_account.credit
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     accountNumber:
+ *                       type: string
+ *                       description: Student virtual account number
+ *                     amount:
+ *                       type: number
+ *                     reference:
+ *                       type: string
  *     responses:
  *       200:
  *         description: Webhook received and processed
@@ -466,7 +472,12 @@ router.post('/webhook', handleWebhook)
  *                 transactions:
  *                   type: array
  */
-router.get('/transactions', protect, getTransactions)
+router.get(
+  '/transactions',
+  protect,
+  cacheMiddleware(60, (req) => `txns:${req.user._id}:${req.query.page || 1}`),
+  getTransactions
+)
 
 // ─────────────────────────────────────────────────
 // RECONCILIATION — ADMIN ONLY

@@ -6,6 +6,7 @@ const {
   markOneAsRead
 } = require('../controllers/notification.controller')
 const { protect } = require('../middleware/auth.middleware')
+const { cacheMiddleware } = require('../services/cache.service')
 
 /**
  * @swagger
@@ -26,7 +27,12 @@ const { protect } = require('../middleware/auth.middleware')
  *       200:
  *         description: Notifications list
  */
-router.get('/', protect, getNotifications)
+router.get(
+  '/',
+  protect,
+  cacheMiddleware(30, (req) => `notifs:${req.user._id}`),
+  getNotifications
+)
 
 /**
  * @swagger

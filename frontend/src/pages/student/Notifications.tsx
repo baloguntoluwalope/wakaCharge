@@ -106,12 +106,14 @@ export default function Notifications() {
   const qc = useQueryClient()
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
 
-  const { data, isLoading, refetch } = useQuery({
+  // Fetch notifications with polling
+  const { data, isLoading } = useQuery({
     queryKey: ['notifications'],
     queryFn: notificationsApi.getAll,
     refetchInterval: 30000,
   })
 
+  // Mark all notifications as read mutation
   const { mutate: markAll, isPending: markingAll } = useMutation({
     mutationFn: notificationsApi.markAllRead,
     onSuccess: () => {
@@ -120,9 +122,39 @@ export default function Notifications() {
     },
   })
 
+  // Mark a single notification as read mutation with Optimistic UI updates
   const { mutate: markOne } = useMutation({
     mutationFn: (id: string) => notificationsApi.markOneRead(id),
-    onSuccess: () => {
+    onMutate: async (id: string) => {
+      // Cancel outgoing refetches to prevent overwriting our optimistic state
+      await qc.cancelQueries({ queryKey: ['notifications'] })
+
+      // Snapshot the previous state value
+      const previous = qc.getQueryData(['notifications'])
+
+      // Optimistically update the cache instantly
+      qc.setQueryData(['notifications'], (old: any) => {
+        if (!old) return old
+        return {
+          ...old,
+          unreadCount: Math.max(0, (old.unreadCount || 0) - 1),
+          notifications: old.notifications?.map((n: any) =>
+            n._id === id ? { ...n, isRead: true } : n
+          ),
+        }
+      })
+
+      // Return context with snapshotted value
+      return { previous }
+    },
+    onError: (_err, _id, context: any) => {
+      // Roll back to the original values if request fails
+      if (context?.previous) {
+        qc.setQueryData(['notifications'], context.previous)
+      }
+    },
+    onSettled: () => {
+      // Sync up background cache cleanly with backend data
       qc.invalidateQueries({ queryKey: ['notifications'] })
     },
   })
@@ -191,6 +223,7 @@ export default function Notifications() {
         {unread > 0 && filter === 'all' && (
           <motion.div
             initial={{ opacity: 0, y: -8 }}
+            initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 mb-4"
           >
@@ -201,7 +234,7 @@ export default function Notifications() {
           </motion.div>
         )}
 
-        {/* Loading */}
+        {/* Loading Skeleton */}
         {isLoading && (
           <div className="flex flex-col gap-3">
             {Array.from({ length: 5 }).map((_, i) => (
