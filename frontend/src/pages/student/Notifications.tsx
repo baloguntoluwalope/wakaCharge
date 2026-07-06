@@ -222,9 +222,8 @@ export default function Notifications() {
         {/* Unread badge */}
         {unread > 0 && filter === 'all' && (
           <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
+  initial={{ opacity: 0, y: -8 }}
+  animate={{ opacity: 1, y: 0 }}
             className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 mb-4"
           >
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />

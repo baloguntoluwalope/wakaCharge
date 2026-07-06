@@ -1,4 +1,5 @@
-import axios, { AxiosError, AxiosInstance } from 'axios'
+import axios from 'axios'
+import type { AxiosError, AxiosInstance } from 'axios' 
 
 const BASE_URL =
   import.meta.env.VITE_API_URL ||

@@ -1,10 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite' // ◄ Added Tailwind v4 Compiler Plugin
 import path from 'path'
 
 export default defineConfig({
   plugins: [
     react(),
+    tailwindcss(), // ◄ Compiles @theme blocks out before LightningCSS minifies
   ],
 
   resolve: {
@@ -14,14 +16,21 @@ export default defineConfig({
   server: {
     port: 3000,
     strictPort: true,
-    // Vite's dev server already falls back to index.html
-    // for unmatched routes by default — no config needed.
+  },
+
+  css: {
+    // Explicitly forces Vite/Rolldown to fallback to standard CSS transformers
+    // if LightningCSS still complains about specific native CSS modules.
+    transformer: 'postcss',
   },
 
   build: {
     outDir: 'dist',
-    // Smaller chunks = faster first load
     chunkSizeWarningLimit: 500,
+    minify: 'esbuild', // Minifies JS chunks safely
+    cssCodeSplit: true,
+    sourcemap: false,
+    
     rollupOptions: {
       output: {
         manualChunks: (id) => {
@@ -59,12 +68,6 @@ export default defineConfig({
         },
       },
     },
-    // Enable minification
-    minify: 'esbuild',
-    // Enable CSS code splitting
-    cssCodeSplit: true,
-    // Source maps only in dev
-    sourcemap: false,
   },
 
   // Optimize dependencies pre-bundling
