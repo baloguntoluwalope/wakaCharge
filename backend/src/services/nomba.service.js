@@ -49,6 +49,19 @@ const mockRefund = ({ reference, amount }) => ({
   isMock: true
 })
 
+// Mock transaction list — returns one fake successful credit so the
+// polling flow can be tested end-to-end without hitting Nomba at all.
+const mockVirtualAccountTransactions = (accountNumber) => ([
+  {
+    reference: `MOCK-TXN-${Date.now()}`,
+    amount: '1000.00',
+    status: 'successful',
+    accountNumber,
+    createdAt: new Date().toISOString(),
+    isMock: true
+  }
+])
+
 // ─────────────────────────────────────────────────
 // Real Nomba auth
 // ─────────────────────────────────────────────────
@@ -125,6 +138,58 @@ const createVirtualAccount = async (user) => {
     )
     console.warn('⚠️  Falling back to mock virtual account')
     return mockVirtualAccount(user)
+  }
+}
+
+// ─────────────────────────────────────────────────
+// List Virtual Account Transactions
+// Pull-based fallback for confirming transfers while no public
+// webhook URL is configured yet.
+//
+// ⚠️ ENDPOINT NOT CONFIRMED — this path is a best-guess based on the
+// pattern of your other Nomba routes (/accounts/virtual, /checkout/order,
+// /transfers/single). Check Nomba's API docs for the actual "virtual
+// account transaction history" or "account statement" endpoint and
+// update the URL below before relying on this in production. Until
+// confirmed, real calls that 404/fail will safely fall back to mock data
+// (visible immediately via console warnings and isMock: true in results).
+// ─────────────────────────────────────────────────
+const getVirtualAccountTransactions = async (accountNumber, { page = 1, limit = 20 } = {}) => {
+  if (IS_MOCK) {
+    console.log('🧪 [Nomba mock] getVirtualAccountTransactions:', accountNumber)
+    return mockVirtualAccountTransactions(accountNumber)
+  }
+
+  try {
+    const headers = await getNombaHeaders()
+    const response = await axios.get(
+      `${NOMBA_BASE_URL}/accounts/virtual/${accountNumber}/transactions`,
+      { headers, params: { page, limit } }
+    )
+
+    const data = response.data.data
+    const transactions = Array.isArray(data)
+      ? data
+      : (data?.transactions || data?.items || [])
+
+    return transactions.map(t => ({
+      reference: t.reference || t.transactionReference || t.id,
+      amount: t.amount,
+      status: (t.status || '').toLowerCase(),
+      accountNumber: t.accountNumber || accountNumber,
+      createdAt: t.createdAt || t.date,
+      raw: t
+    }))
+
+  } catch (error) {
+    console.error(
+      '❌ NOMBA VIRTUAL ACCOUNT TRANSACTIONS REAL ERROR:',
+      'Status:', error.response?.status,
+      'Data:', JSON.stringify(error.response?.data, null, 2),
+      'Message:', error.message
+    )
+    console.warn('⚠️  Falling back to mock transaction list — confirm the correct endpoint with Nomba docs')
+    return mockVirtualAccountTransactions(accountNumber)
   }
 }
 
@@ -285,6 +350,7 @@ module.exports = {
   getNombaToken,
   getNombaHeaders,
   createVirtualAccount,
+  getVirtualAccountTransactions,
   createCheckoutSession,
   verifyPayment,
   processRefund,

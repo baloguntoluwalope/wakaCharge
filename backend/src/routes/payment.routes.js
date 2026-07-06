@@ -3,6 +3,7 @@ const router = express.Router()
 const {
   getWalletBalance,
   getVirtualAccount,
+  verifyVirtualAccountFunding,
   createCheckout,
   verifyCheckoutPayment,
   handleWebhook,
@@ -31,7 +32,8 @@ const { cacheMiddleware } = require('../services/cache.service')
  *     Nomba-powered payment system.
  *
  *     ### Two Ways To Fund Wallet
- *     1. **Virtual Account** — Transfer to your Nomba account number. Instant via webhook.
+ *     1. **Virtual Account** — Transfer to your Nomba account number. Instant via webhook,
+ *        or confirm manually via GET /verify-transfer if no public webhook URL is configured yet.
  *     2. **Checkout** — Pay by card via Nomba checkout link.
  *
  *     ### Security Features
@@ -148,6 +150,54 @@ router.get(
  *         description: Failed to generate virtual account
  */
 router.get('/virtual-account', protect, getVirtualAccount)
+
+/**
+ * @swagger
+ * /api/v1/payments/verify-transfer:
+ *   get:
+ *     summary: Manually confirm a virtual account transfer (webhook fallback)
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     description: |
+ *       Use this while no public webhook URL is configured yet, or as a
+ *       manual "I've paid" check for the student.
+ *
+ *       Calls Nomba directly to list recent transactions on the student's
+ *       virtual account, and credits the wallet for any successful transfer
+ *       that hasn't already been recorded — safe to call repeatedly, since
+ *       each transfer reference is only ever credited once.
+ *
+ *       Once a public webhook URL is set up, this becomes an optional
+ *       backup rather than the primary confirmation path.
+ *     responses:
+ *       200:
+ *         description: Transfer check result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 credited:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "₦1000 confirmed and added to your wallet."
+ *                 walletBalance:
+ *                   type: number
+ *                   example: 3500
+ *       400:
+ *         description: No virtual account exists yet
+ *       401:
+ *         description: Not authorized
+ *       502:
+ *         description: Could not reach Nomba to verify
+ */
+router.get('/verify-transfer', protect, verifyVirtualAccountFunding)
 
 // ─────────────────────────────────────────────────
 // CHECKOUT

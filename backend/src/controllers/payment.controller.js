@@ -11,7 +11,8 @@ const {
   createCheckoutSession,
   verifyPayment,
   verifyWebhookSignature,
-  createVirtualAccount
+  createVirtualAccount,
+  getVirtualAccountTransactions
 } = require('../services/nomba.service')
 
 const {
@@ -36,6 +37,121 @@ const {
 } = require('../services/idempotency.service')
 
 const { cache } = require('../services/cache.service')
+
+// ─────────────────────────────────────────────────
+// SHARED HELPER — credit wallet for a virtual account transfer
+// Used by BOTH the webhook handler and the polling fallback below,
+// so the two paths can never drift out of sync or double-credit.
+// ─────────────────────────────────────────────────
+const creditWalletFromTransfer = async ({
+  user,
+  amount,
+  reference,
+  accountNumber,
+  source,   // 'webhook' or 'poll'
+  rawData
+}) => {
+  // Idempotency guard — if this reference was already processed
+  // (by webhook OR a previous poll), skip silently.
+  const existing = await Transaction.findOne({
+    reference,
+    status: 'success'
+  })
+
+  if (existing) {
+    return { credited: false, reason: 'already_processed' }
+  }
+
+  const session = await mongoose.startSession()
+  session.startTransaction()
+
+  try {
+    const balanceBefore = user.walletBalance
+    user.walletBalance += amount
+    await user.save({ validateBeforeSave: false, session })
+
+    const transaction = await Transaction.create(
+      [{
+        userId: user._id,
+        amount,
+        type: 'wallet_funding',
+        status: 'success',
+        reference,
+        provider: 'nomba_virtual_account',
+        description: `Wallet funding via virtual account (${source})`,
+        balanceBefore,
+        balanceAfter: user.walletBalance,
+        metadata: {
+          accountNumber,
+          source,
+          receivedAt: new Date(),
+          rawData
+        }
+      }],
+      { session }
+    )
+
+    await session.commitTransaction()
+
+    cache.invalidate(`wallet:${user._id}`)
+    cache.invalidate(`txns:${user._id}:1`)
+
+    await createReconciliationRecord({
+      reference,
+      type: 'virtual_account_credit',
+      expectedAmount: amount,
+      actualAmount: amount,
+      userId: user._id,
+      transactionId: transaction[0]._id,
+      nombaReference: reference,
+      walletBalanceBefore: balanceBefore,
+      walletBalanceAfter: user.walletBalance,
+      rawWebhookPayload: rawData
+    })
+
+    await createAuditLog({
+      userId: user._id,
+      role: 'student',
+      action: 'WALLET_FUNDED',
+      resourceType: 'Transaction',
+      resourceId: transaction[0]._id,
+      previousState: { walletBalance: balanceBefore },
+      newState: { walletBalance: user.walletBalance },
+      metadata: { amount, reference, method: 'virtual_account', accountNumber, source },
+      status: 'success'
+    })
+
+    await Notification.create({
+      userId: user._id,
+      title: '💰 Wallet Funded',
+      message: `₦${amount.toLocaleString()} added to your wallet.`,
+      type: 'wallet_funded'
+    })
+
+    cache.invalidate(`notifs:${user._id}`)
+
+    await sendWalletFundedEmail(
+      user.email, user.name, amount, user.walletBalance
+    )
+
+    return { credited: true, walletBalance: user.walletBalance, amount }
+
+  } catch (error) {
+    await session.abortTransaction()
+
+    await createAuditLog({
+      userId: user._id,
+      action: 'PAYMENT_FAILED',
+      metadata: { reference, amount, step: `${source}_processing` },
+      status: 'failed',
+      errorMessage: error.message
+    })
+
+    throw error
+  } finally {
+    session.endSession()
+  }
+}
 
 // ─────────────────────────────────────────────────
 // GET WALLET BALANCE + VIRTUAL ACCOUNT
@@ -98,7 +214,6 @@ const getVirtualAccount = async (req, res) => {
     user.virtualAccountReference = account.accountReference
     await user.save({ validateBeforeSave: false })
 
-    // New virtual account number set — wallet response would now include it
     cache.invalidate(`wallet:${user._id}`)
 
     await createAuditLog({
@@ -146,6 +261,122 @@ const getVirtualAccount = async (req, res) => {
       message: 'Failed to generate virtual account. Please try again.'
     })
   }
+}
+
+// ─────────────────────────────────────────────────
+// VERIFY VIRTUAL ACCOUNT FUNDING — polling fallback
+// GET /api/v1/payments/verify-transfer
+//
+// Use this while no public webhook URL is configured.
+// Calls Nomba directly to check for new incoming credits
+// to the student's virtual account, and credits the wallet
+// for any that haven't been recorded yet.
+//
+// Frontend should call this after the student says
+// "I've made the transfer" — e.g. a manual "I've paid" button
+// on the virtual-account funding screen, or on a short poll loop.
+// ─────────────────────────────────────────────────
+const verifyVirtualAccountFunding = async (req, res) => {
+  const user = await User.findById(req.user._id)
+
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: 'User not found'
+    })
+  }
+
+  if (!user.virtualAccountNumber) {
+    return res.status(400).json({
+      success: false,
+      message: 'No virtual account found. Generate one first at GET /virtual-account.'
+    })
+  }
+
+  let transactions
+  try {
+    transactions = await getVirtualAccountTransactions(user.virtualAccountNumber, {
+      page: 1,
+      limit: 20
+    })
+  } catch (error) {
+    await createAuditLog({
+      userId: user._id,
+      role: user.role,
+      action: 'PAYMENT_FAILED',
+      metadata: { step: 'verify_transfer_fetch', accountNumber: user.virtualAccountNumber },
+      status: 'failed',
+      errorMessage: error.message
+    })
+
+    return res.status(502).json({
+      success: false,
+      message: 'Could not reach Nomba to verify transfer. Please try again shortly.'
+    })
+  }
+
+  // Only consider successful/completed credits
+  const successfulTxns = transactions.filter(t =>
+    ['success', 'successful', 'completed'].includes(t.status)
+  )
+
+  if (successfulTxns.length === 0) {
+    return res.status(200).json({
+      success: true,
+      credited: false,
+      message: 'No new transfer found yet. If you just paid, wait a few seconds and try again.',
+      walletBalance: user.walletBalance
+    })
+  }
+
+  const results = []
+  for (const txn of successfulTxns) {
+    try {
+      const result = await creditWalletFromTransfer({
+        user,
+        amount: txn.amount,
+        reference: txn.reference,
+        accountNumber: user.virtualAccountNumber,
+        source: 'poll',
+        rawData: txn.raw
+      })
+      results.push({ reference: txn.reference, ...result })
+    } catch (error) {
+      results.push({
+        reference: txn.reference,
+        credited: false,
+        reason: 'error',
+        error: error.message
+      })
+    }
+  }
+
+  const newlyCredited = results.filter(r => r.credited)
+
+  // Re-fetch user to get the true final balance after all credits applied
+  const refreshedUser = await User.findById(req.user._id)
+
+  if (newlyCredited.length === 0) {
+    return res.status(200).json({
+      success: true,
+      credited: false,
+      message: 'Transfer(s) found but already credited previously.',
+      walletBalance: refreshedUser.walletBalance
+    })
+  }
+
+  const totalCredited = newlyCredited.reduce((sum, r) => sum + r.amount, 0)
+
+  res.status(200).json({
+    success: true,
+    credited: true,
+    message: `₦${totalCredited.toLocaleString()} confirmed and added to your wallet.`,
+    creditedTransactions: newlyCredited.map(r => ({
+      reference: r.reference,
+      amount: r.amount
+    })),
+    walletBalance: refreshedUser.walletBalance
+  })
 }
 
 // ─────────────────────────────────────────────────
@@ -215,7 +446,6 @@ const createCheckout = async (req, res) => {
       }
     })
 
-    // New pending transaction created — invalidate cached history
     cache.invalidate(`txns:${user._id}:1`)
 
     await createAuditLog({
@@ -330,7 +560,6 @@ const verifyCheckoutPayment = async (req, res) => {
 
     await session.commitTransaction()
 
-    // Wallet credited and transaction status flipped to success
     cache.invalidate(`wallet:${user._id}`)
     cache.invalidate(`txns:${user._id}:1`)
 
@@ -448,6 +677,11 @@ const pollPaymentStatus = async (req, res) => {
 // ─────────────────────────────────────────────────
 // NOMBA WEBHOOK HANDLER
 // POST /api/v1/payments/webhook
+//
+// Kept fully working — once a public webhook URL exists, this fires
+// instantly and creditWalletFromTransfer's idempotency guard means
+// there's no risk of double-crediting if the poll endpoint above
+// already caught the same transfer first.
 // ─────────────────────────────────────────────────
 const handleWebhook = async (req, res) => {
   const signature =
@@ -491,24 +725,6 @@ const handleWebhook = async (req, res) => {
   ) {
     const { accountNumber, amount, reference } = data
 
-    const existingTransaction = await Transaction.findOne({
-      reference,
-      status: 'success'
-    })
-
-    if (existingTransaction) {
-      await createAuditLog({
-        action: 'WEBHOOK_DUPLICATE',
-        metadata: { event, reference, amount },
-        status: 'warning'
-      })
-      console.warn('⚠️ Duplicate webhook ignored:', reference)
-      return res.status(200).json({
-        success: true,
-        message: 'Duplicate webhook acknowledged'
-      })
-    }
-
     const user = await User.findOne({
       virtualAccountNumber: accountNumber
     })
@@ -525,95 +741,28 @@ const handleWebhook = async (req, res) => {
       })
     }
 
-    const session = await mongoose.startSession()
-    session.startTransaction()
-
     try {
-      const balanceBefore = user.walletBalance
-      user.walletBalance += amount
-      await user.save({ validateBeforeSave: false, session })
-
-      const transaction = await Transaction.create(
-        [{
-          userId: user._id,
-          amount,
-          type: 'wallet_funding',
-          status: 'success',
-          reference,
-          provider: 'nomba_virtual_account',
-          description: 'Wallet funding via virtual account',
-          balanceBefore,
-          balanceAfter: user.walletBalance,
-          metadata: {
-            accountNumber,
-            webhookEvent: event,
-            receivedAt: new Date(),
-            rawData: data
-          }
-        }],
-        { session }
-      )
-
-      await session.commitTransaction()
-
-      // Wallet credited via webhook — invalidate cached balance/history
-      cache.invalidate(`wallet:${user._id}`)
-      cache.invalidate(`txns:${user._id}:1`)
-
-      await createReconciliationRecord({
+      const result = await creditWalletFromTransfer({
+        user,
+        amount,
         reference,
-        type: 'virtual_account_credit',
-        expectedAmount: amount,
-        actualAmount: amount,
-        userId: user._id,
-        transactionId: transaction[0]._id,
-        nombaReference: reference,
-        walletBalanceBefore: balanceBefore,
-        walletBalanceAfter: user.walletBalance,
-        rawWebhookPayload: data
+        accountNumber,
+        source: 'webhook',
+        rawData: data
       })
 
-      await createAuditLog({
-        userId: user._id,
-        role: 'student',
-        action: 'WALLET_FUNDED',
-        resourceType: 'Transaction',
-        resourceId: transaction[0]._id,
-        previousState: { walletBalance: balanceBefore },
-        newState: { walletBalance: user.walletBalance },
-        metadata: { amount, reference, method: 'virtual_account', accountNumber },
-        status: 'success'
-      })
-
-      await Notification.create({
-        userId: user._id,
-        title: '💰 Wallet Funded',
-        message: `₦${amount.toLocaleString()} added to your wallet.`,
-        type: 'wallet_funded'
-      })
-
-      cache.invalidate(`notifs:${user._id}`)
-
-      await sendWalletFundedEmail(
-        user.email, user.name, amount, user.walletBalance
-      )
-
-      console.log(`✅ Wallet funded: ${user.name} +₦${amount}`)
-
+      if (!result.credited) {
+        await createAuditLog({
+          action: 'WEBHOOK_DUPLICATE',
+          metadata: { event, reference, amount, reason: result.reason },
+          status: 'warning'
+        })
+        console.warn('⚠️ Duplicate/already-processed webhook ignored:', reference)
+      } else {
+        console.log(`✅ Wallet funded: ${user.name} +₦${amount}`)
+      }
     } catch (error) {
-      await session.abortTransaction()
-
-      await createAuditLog({
-        userId: user._id,
-        action: 'PAYMENT_FAILED',
-        metadata: { reference, amount, step: 'webhook_processing' },
-        status: 'failed',
-        errorMessage: error.message
-      })
-
       console.error('❌ Webhook processing failed:', error.message)
-    } finally {
-      session.endSession()
     }
   }
 
@@ -661,7 +810,6 @@ const handleWebhook = async (req, res) => {
 
       await session.commitTransaction()
 
-      // Wallet credited via webhook — invalidate cached balance/history
       cache.invalidate(`wallet:${user._id}`)
       cache.invalidate(`txns:${user._id}:1`)
 
@@ -799,6 +947,7 @@ const getAuditLogs = async (req, res) => {
 module.exports = {
   getWalletBalance,
   getVirtualAccount,
+  verifyVirtualAccountFunding,
   createCheckout,
   verifyCheckoutPayment,
   pollPaymentStatus,
