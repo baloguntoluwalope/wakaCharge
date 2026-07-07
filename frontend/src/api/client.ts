@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AxiosError, AxiosInstance } from 'axios' 
+import type { AxiosError, AxiosInstance } from 'axios'
 
 const BASE_URL =
   import.meta.env.VITE_API_URL ||
@@ -11,14 +11,15 @@ class ApiClient {
   constructor() {
     this.instance = axios.create({
       baseURL: `${BASE_URL}/api/v1`,
-      timeout: 20000, // 20s — enough for cold start
+      timeout: 20000,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Accept-Encoding': 'gzip, deflate, br',
+        // ❌ REMOVE THIS — browser controls it, setting it throws security error:
+        // 'Accept-Encoding': 'gzip, deflate, br',
+        // ❌ REMOVE THIS TOO — also browser-controlled:
+        // 'decompress': true,
       },
-      // Enable response decompression
-      decompress: true,
     })
 
     this.instance.interceptors.request.use(
@@ -38,11 +39,18 @@ class ApiClient {
         if (error.response?.status === 401) {
           const path = window.location.pathname
           const publicPaths = [
-            '/', '/login', '/register',
-            '/verify-otp', '/complete-profile',
-            '/forgot-password', '/reset-verify-otp', '/reset-password',
-            '/operator-login', '/admin-login',
-            '/payment/verify', '/payment/callback',
+            '/',
+            '/login',
+            '/register',
+            '/verify-otp',
+            '/complete-profile',
+            '/forgot-password',
+            '/reset-verify-otp',
+            '/reset-password',
+            '/operator-login',
+            '/admin-login',
+            '/payment/verify',
+            '/payment/callback',
           ]
           const isPublic = publicPaths.some(p => path.startsWith(p))
           if (!isPublic) {

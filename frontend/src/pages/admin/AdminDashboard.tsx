@@ -1,10 +1,6 @@
 import { useState, type JSX } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid
-} from 'recharts'
-import {
   HiUsers,
   HiLightningBolt,
   HiCurrencyDollar,
@@ -21,6 +17,67 @@ import { StatsCard, Card, Skeleton } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { formatCurrency } from '../../utils'
 import type { AdminDashboard as AdminDashboardType } from '../../types'
+
+// ─── Lightweight bar chart (no recharts dependency) ────────
+interface BarDatum {
+  label: string
+  value: number
+}
+
+function SimpleBarChart({
+  data,
+  color,
+  formatValue,
+}: {
+  data: BarDatum[]
+  color: string
+  formatValue?: (v: number) => string
+}) {
+  const max = Math.max(...data.map(d => d.value), 1)
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+
+  return (
+    <div className="h-48 flex flex-col">
+      <div className="flex-1 flex items-end gap-1.5 relative">
+        {data.map((d, i) => {
+          const heightPct = Math.max(2, (d.value / max) * 100)
+          return (
+            <div
+              key={i}
+              className="flex-1 h-full flex flex-col justify-end items-center relative"
+              onMouseEnter={() => setHoverIdx(i)}
+              onMouseLeave={() => setHoverIdx(null)}
+            >
+              {hoverIdx === i && (
+                <div
+                  className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 rounded-lg text-white text-[10px] font-bold whitespace-nowrap z-10"
+                  style={{ background: '#0b1420' }}
+                >
+                  {formatValue ? formatValue(d.value) : d.value}
+                </div>
+              )}
+              <div
+                className="w-full rounded-t-md transition-all duration-200"
+                style={{
+                  height: `${heightPct}%`,
+                  background: color,
+                  opacity: hoverIdx === null || hoverIdx === i ? 1 : 0.4,
+                }}
+              />
+            </div>
+          )
+        })}
+      </div>
+      <div className="flex gap-1.5 mt-2">
+        {data.map((d, i) => (
+          <div key={i} className="flex-1 text-center">
+            <span className="text-[9px] text-slate-400 font-medium">{d.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export default function AdminDashboard() {
   const [revPeriod, setRevPeriod] = useState('7days')
@@ -56,17 +113,18 @@ export default function AdminDashboard() {
   const reconciliation = reconcData as any
   const auditLogs = (auditData as any)?.logs || []
 
-  const revenueChartData = rev?.dailyRevenue
+  const revenueChartData: BarDatum[] = rev?.dailyRevenue
     ? Object.entries(rev.dailyRevenue).map(([date, amount]) => ({
-        date: date.slice(5),
-        revenue: amount as number
+        label: date.slice(5),
+        value: amount as number,
       }))
     : []
 
-  const peakData = analytics?.peakRentalHours?.map((h: any) => ({
-    hour: `${h._id}:00`,
-    rentals: h.count
-  })) || []
+  const peakData: BarDatum[] =
+    analytics?.peakRentalHours?.map((h: any) => ({
+      label: `${h._id}h`,
+      value: h.count,
+    })) || []
 
   return (
     <div className="p-6 max-w-7xl">
@@ -142,18 +200,11 @@ export default function AdminDashboard() {
             </div>
           </div>
           {revenueChartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={revenueChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={{ background: '#0b1420', border: 'none', borderRadius: 12, color: '#fff' }}
-                  formatter={(v: any) => [formatCurrency(v), 'Revenue']}
-                />
-                <Bar dataKey="revenue" fill="#1db954" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <SimpleBarChart
+              data={revenueChartData}
+              color="#1db954"
+              formatValue={v => formatCurrency(v)}
+            />
           ) : (
             <div className="h-48 flex items-center justify-center text-slate-300">No data yet</div>
           )}
@@ -166,17 +217,7 @@ export default function AdminDashboard() {
           </p>
           <p className="text-sm text-slate-500 mb-4">When students rent most</p>
           {peakData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={peakData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="hour" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={{ background: '#0b1420', border: 'none', borderRadius: 12, color: '#fff' }}
-                />
-                <Bar dataKey="rentals" fill="#f59e0b" radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <SimpleBarChart data={peakData} color="#f59e0b" />
           ) : (
             <div className="h-48 flex items-center justify-center text-slate-300">No data yet</div>
           )}
