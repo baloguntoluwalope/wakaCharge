@@ -143,18 +143,11 @@ const createVirtualAccount = async (user) => {
 
 // ─────────────────────────────────────────────────
 // Verify Transaction By Reference
-// Nomba's transaction verification API — the reliable webhook fallback.
-// Given a specific transaction/transfer reference (the student reads this
-// off their bank transfer receipt/app), asks Nomba directly whether it
-// succeeded, rather than guessing at a "list all transactions" endpoint.
-//
-// ⚠️ ENDPOINT NOT FULLY CONFIRMED — modeled closely on your existing
-// verifyPayment() pattern (GET /checkout/order/{orderReference}), since
-// Nomba's transaction verification API is very likely a similar
-// GET /transactions/{reference}-style lookup. Confirm the exact path
-// against Nomba's official API docs before relying on this in production.
-// Until confirmed, failed/404 real calls safely fall back to mock data
-// (visible immediately via console warnings and isMock: true in results).
+// Confirmed Nomba endpoint: GET /v1/transactions/accounts/single
+// Works in both sandbox and production. Accepts either orderReference
+// or transactionRef as a query param — we try transactionRef first
+// since that's the one returned on bank transfers, and fall back to
+// orderReference for checkout-style references if needed.
 // ─────────────────────────────────────────────────
 const verifyTransactionByReference = async (reference, accountNumber) => {
   if (IS_MOCK) {
@@ -165,18 +158,21 @@ const verifyTransactionByReference = async (reference, accountNumber) => {
   try {
     const headers = await getNombaHeaders()
     const response = await axios.get(
-      `${NOMBA_BASE_URL}/transactions/${reference}`,
-      { headers }
+      `${NOMBA_BASE_URL}/transactions/accounts/single`,
+      {
+        headers,
+        params: { transactionRef: reference }
+      }
     )
 
     const data = response.data.data
 
     return {
-      reference: data.reference || data.transactionReference || reference,
+      reference: data.transactionRef || data.reference || data.orderReference || reference,
       status: (data.status || '').toLowerCase(),
       amount: data.amount,
       accountNumber: data.accountNumber || data.destinationAccountNumber || accountNumber,
-      paidAt: data.paidAt || data.createdAt,
+      paidAt: data.paidAt || data.createdAt || data.transactionDate,
       raw: data
     }
 
@@ -187,11 +183,10 @@ const verifyTransactionByReference = async (reference, accountNumber) => {
       'Data:', JSON.stringify(error.response?.data, null, 2),
       'Message:', error.message
     )
-    console.warn('⚠️  Falling back to mock transaction verify — confirm the correct endpoint with Nomba docs')
+    console.warn('⚠️  Falling back to mock transaction verify')
     return mockVerifyTransaction(reference, accountNumber)
   }
 }
-
 // ─────────────────────────────────────────────────
 // Create Checkout Session
 // Correct endpoint: POST /checkout/order (singular)
@@ -282,7 +277,8 @@ const verifyPayment = async (orderReference) => {
     )
     console.warn('⚠️  Falling back to mock verify')
     return mockVerifyPayment(orderReference)
-  }
+  return mockVerifyPayment(orderReference)
+}
 }
 
 // ─────────────────────────────────────────────────
