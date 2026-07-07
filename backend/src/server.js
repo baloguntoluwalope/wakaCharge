@@ -32,19 +32,16 @@ if (cluster.isPrimary && process.env.NODE_ENV === 'production') {
 
 async function startServer() {
   try {
-    // 1. Load compression (install if needed: npm install compression)
-    let compression
-    try {
-      compression = require('compression')
-    } catch {
-      compression = null
+    // 1. Connect to MongoDB with optimized pool
+    const mongoose = require('mongoose')
+
+    const poolConfig = {
+      maxPoolSize: 10,
+      minPoolSize: 2
     }
 
-    // 2. Connect to MongoDB with optimized pool
-    const mongoose = require('mongoose')
     await mongoose.connect(process.env.MONGO_URI, {
-      maxPoolSize: 10,
-      minPoolSize: 2,
+      ...poolConfig,
       serverSelectionTimeoutMS: 10000,
       socketTimeoutMS: 45000,
       connectTimeoutMS: 10000,
@@ -52,21 +49,18 @@ async function startServer() {
     })
 
     console.log(`✅ MongoDB connected: ${mongoose.connection.host}`)
-    console.log(`📊 Pool: ${mongoose.connection.config?.maxPoolSize || 10} connections`)
+    console.log(`📊 Pool: ${poolConfig.maxPoolSize} connections`)
 
-    // 3. Import your existing app.js (all routes already defined there)
+    // 2. Import your existing app.js (all routes, middleware, compression already defined there)
     const app = require('./app')
-
-    // 4. Add compression if available (must be before routes but app already has routes)
-    //    Since app.js is already built, we wrap it at the HTTP level instead
     const http = require('http')
 
-    // 5. Create indexes in background (non-blocking)
+    // 3. Create indexes in background (non-blocking)
     createIndexes(mongoose).catch(err => {
       console.warn('⚠️  Index creation warning:', err.message)
     })
 
-    // 6. Start listening
+    // 4. Start listening
     const PORT = process.env.PORT || 5000
     const server = http.createServer(app)
 
@@ -84,13 +78,13 @@ async function startServer() {
 ╚════════════════════════════════════════╝
       `)
 
-      // 7. Start keep-alive pinger in production
+      // 5. Start keep-alive pinger in production
       if (process.env.NODE_ENV === 'production') {
         startKeepAlive()
       }
     })
 
-    // 8. Graceful shutdown
+    // 6. Graceful shutdown
     const shutdown = async (signal) => {
       console.log(`\n📴 ${signal} received — shutting down gracefully`)
       server.close(async () => {
@@ -109,7 +103,7 @@ async function startServer() {
     process.on('SIGTERM', () => shutdown('SIGTERM'))
     process.on('SIGINT', () => shutdown('SIGINT'))
 
-    // 9. Handle unhandled errors — don't crash the server
+    // 7. Handle unhandled errors — don't crash the server
     process.on('unhandledRejection', (reason, promise) => {
       console.error('❌ Unhandled Rejection:', reason)
       // Don't exit — just log it
