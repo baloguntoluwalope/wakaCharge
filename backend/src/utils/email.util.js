@@ -716,37 +716,66 @@
 const SibApiV3Sdk = require('sib-api-v3-sdk')
 const transactionalEmailApi = require('../config/email')
 
-const FROM_NAME = process.env.BREVO_FROM_NAME || 'Waka Charge'
+const FROM_NAME = process.env.BREVO_FROM_NAME || 'Waka'
 const FROM_EMAIL = process.env.BREVO_FROM_EMAIL
 
+// ─────────────────────────────────────────────────
+// Premium Fintech Frame & Components
+// ─────────────────────────────────────────────────
+
 const header = `
-  <div style="background:#0D1B2A;padding:30px;text-align:center;">
-    <h1 style="color:#1DB954;margin:0;">⚡ WAKA CHARGE</h1>
-    <p style="color:#fff;margin:5px 0 0;">Campus Energy Rental</p>
+  <div style="padding: 32px 0 24px; border-bottom: 1px solid #f1f5f9; margin-bottom: 32px;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 32px; height: 32px; background: #22c55e; border-radius: 10px; display: inline-block; text-align: center; line-height: 32px;">
+        <span style="color: #ffffff; font-size: 16px; font-weight: bold;">⚡</span>
+      </div>
+      <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 18px; font-weight: 900; color: #0f172a; letter-spacing: -0.02em; margin-left: 6px; vertical-align: middle;">
+        Waka<span style="color: #22c55e;">.</span>
+      </span>
+    </div>
   </div>
 `
 
 const footer = `
-  <div style="background:#0D1B2A;padding:15px;text-align:center;">
-    <p style="color:#888;margin:0;font-size:12px;">
-      © 2026 Waka Charge. All rights reserved.
+  <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid #f1f5f9; text-align: left;">
+    <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #94a3b8; margin: 0; font-size: 12px; line-height: 1.8;">
+      This is an automated transaction security notification for your account. If you noticed any unauthorized activity, please escalate to support immediately.
+    </p>
+    <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #cbd5e1; margin: 12px 0 0; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;">
+      © 2026 Waka Technologies Ltd. · Lagos, Nigeria
     </p>
   </div>
 `
 
 const wrap = (content) => `
-  <body style="font-family:Arial,sans-serif;background:#f4f6f8;padding:20px;">
-    <div style="max-width:500px;margin:0 auto;background:#fff;
-      border-radius:10px;overflow:hidden;">
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  </head>
+  <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 40px 20px; margin: 0; -webkit-font-smoothing: antialiased;">
+    <div style="max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 24px; padding: 40px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.015);">
       ${header}
-      <div style="padding:30px;">${content}</div>
+      <div style="min-height: 200px;">
+        ${content}
+      </div>
       ${footer}
     </div>
   </body>
+  </html>
+`
+
+// Helper tool to render clean metric layout items
+const rowItem = (label, val, highlighted = false) => `
+  <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid #f8fafc;">
+    <span style="font-size: 14px; color: #64748b; font-weight: 500;">${label}</span>
+    <span style="font-size: 14px; color: ${highlighted ? '#22c55e' : '#0f172a'}; font-weight: ${highlighted ? '700' : '600'}; font-family: monospace;">${val}</span>
+  </div>
 `
 
 // ─────────────────────────────────────────────────
-// Core sender — used by every email function below
+// Core Sender Configuration
 // ─────────────────────────────────────────────────
 const sendEmail = async ({ to, subject, html }) => {
   try {
@@ -760,66 +789,55 @@ const sendEmail = async ({ to, subject, html }) => {
     console.log(`✅ Email sent to ${to} — messageId: ${result.messageId}`)
     return result
   } catch (error) {
-    console.error(
-      '❌ Brevo email error:',
-      error.response?.body || error.message
-    )
+    console.error('❌ Brevo email error:', error.response?.body || error.message)
     throw error
   }
 }
 
 // ─────────────────────────────────────────────────
-// Welcome Email
+// Welcome Notification Email
 // ─────────────────────────────────────────────────
-const sendWelcomeEmail = async (
-  email, name,
-  virtualAccountNumber,
-  virtualAccountBank
-) => {
+const sendWelcomeEmail = async (email, name, virtualAccountNumber, virtualAccountBank) => {
   const accountSection = virtualAccountNumber
-    ? `<div style="background:#EAF9EE;border-left:4px solid #1DB954;
-         border-radius:8px;padding:20px;margin:20px 0;">
-         <h3 style="color:#0D1B2A;margin:0 0 10px;">
-           💳 Your Waka Wallet Account
-         </h3>
-         <p style="margin:5px 0;color:#555;">
-           <strong>Bank:</strong> ${virtualAccountBank || 'Nomba'}
-         </p>
-         <p style="margin:5px 0;color:#555;">
-           <strong>Account Number:</strong> ${virtualAccountNumber}
-         </p>
-         <p style="margin:5px 0;color:#555;">
-           <strong>Account Name:</strong> ${name}
-         </p>
-         <p style="margin:15px 0 0;color:#1DB954;font-size:13px;">
-           Transfer any amount here to fund your wallet instantly.
-         </p>
-       </div>`
-    : `<div style="background:#FFF9E6;border-left:4px solid #FFC107;
-         border-radius:8px;padding:15px;margin:20px 0;">
-         <p style="margin:0;color:#555;">
-           ⚠️ Your virtual account is being set up.
-           Check your profile shortly.
-         </p>
-       </div>`
+    ? `
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; margin: 24px 0 32px;">
+        <p style="margin: 0 0 16px; color: #0f172a; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">
+          💳 Personal Deposit Channel
+        </p>
+        ${rowItem('Bank Partner', virtualAccountBank || 'Nomba')}
+        ${rowItem('Account Number', virtualAccountNumber)}
+        ${rowItem('Account Name', name)}
+        <p style="margin: 16px 0 0; color: #64748b; font-size: 13px; line-height: 1.5; text-align: center;">
+          Transfer funds directly to this account to instantly load your Waka Wallet.
+        </p>
+      </div>`
+    : `
+      <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 16px; padding: 16px; margin: 24px 0 32px; text-align: center;">
+        <p style="margin: 0; color: #b45309; font-size: 13px; font-weight: 600;">
+          ⏳ Your dedicated wallet account is indexing with the central clearing bank network. It will activate on your dashboard profile shortly.
+        </p>
+      </div>`
 
   try {
     await sendEmail({
       to: email,
-      subject: 'Welcome to Waka Charge ⚡',
+      subject: 'Welcome to Waka — Let\'s keep you active ⚡',
       html: wrap(`
-        <h2 style="color:#0D1B2A;">Welcome, ${name}! 🎉</h2>
-        <p style="color:#555;line-height:1.6;">
-          Your account has been created successfully.
+        <h2 style="color: #0f172a; font-size: 24px; font-weight: 800; tracking: -0.03em; margin: 0 0 12px;">Welcome to the fleet, ${name.split(' ')[0]}</h2>
+        <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+          Your Waka identity profile is verified and active. You can now access clean energy rentals and seamless neighborhood micro-commerce hubs across your city space.
         </p>
         ${accountSection}
-        <ul style="color:#555;line-height:2;">
-          <li>🔋 Power Banks — ₦300</li>
-          <li>💡 Study Lamps — ₦300</li>
-          <li>🎒 Survival Kits — ₦500</li>
-          <li>🛋️ Comfort Kits — ₦700</li>
-        </ul>
-        <p style="color:#555;">The Waka Charge Team ⚡</p>
+        <p style="color: #0f172a; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 12px;">
+          Current Base Standard Rates:
+        </p>
+        <div style="background: #ffffff; border: 1px solid #f1f5f9; border-radius: 16px; padding: 8px 16px; margin-bottom: 32px;">
+          ${rowItem('High-Capacity Power Bank', '₦300')}
+          ${rowItem('LED Flex Study Lamp', '₦300')}
+          ${rowItem('Emergency Survival Kit', '₦500')}
+          ${rowItem('Daily Comfort Kit', '₦700')}
+        </div>
+        <p style="color: #64748b; font-size: 14px; margin: 0;">Stay powered,<br><strong style="color: #0f172a;">The Waka Team</strong></p>
       `)
     })
   } catch (error) {
@@ -828,82 +846,81 @@ const sendWelcomeEmail = async (
 }
 
 // ─────────────────────────────────────────────────
-// OTP Email
+// Core OTP Security Verification
 // ─────────────────────────────────────────────────
 const sendOTPEmail = async (email, otp, type = 'registration') => {
   const expireMinutes = process.env.OTP_EXPIRE_MINUTES || 5
 
   const subjects = {
-    registration: '⚡ Verify Your Waka Charge Account',
-    login:        '🔐 Your Waka Charge Login Code',
-    reset:        '🔑 Your Waka Charge Password Reset Code'
+    registration: 'Verify your Waka security credentials',
+    login:        'Secure Login Access Code',
+    reset:        'Authorize password reset recovery execution'
   }
 
   const intros = {
-    registration: 'You are almost there! Use this code to verify your email and complete your Waka Charge registration.',
-    login:        'Use this code to complete your login to Waka Charge.',
-    reset:        'Use this code to reset your Waka Charge password.'
+    registration: 'Please verify your identity parameters to initialize your personal Waka profile framework.',
+    login:        'An authentication loop requires verification to permit secure account terminal operations.',
+    reset:        'A profile configuration override parameter change has triggered this identity step request.'
   }
 
   await sendEmail({
     to: email,
     subject: subjects[type] || subjects.registration,
     html: wrap(`
-      <h2 style="color:#0D1B2A;">Verification Code</h2>
-      <p style="color:#555;line-height:1.6;">
+      <h2 style="color: #0f172a; font-size: 24px; font-weight: 800; tracking: -0.03em; margin: 0 0 12px;">Security Verification</h2>
+      <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 32px;">
         ${intros[type] || intros.registration}
       </p>
-      <div style="background:#0D1B2A;border-radius:12px;
-        padding:30px;text-align:center;margin:25px 0;">
-        <p style="color:#888;margin:0 0 10px;font-size:13px;
-          letter-spacing:2px;">
-          YOUR VERIFICATION CODE
-        </p>
-        <h1 style="color:#1DB954;font-size:48px;margin:0;
-          letter-spacing:10px;font-family:monospace;">
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 20px; padding: 36px 20px; text-align: center; margin: 24px 0 32px;">
+        <span style="color: #64748b; font-size: 11px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; display: block; margin-bottom: 16px;">
+          ONE-TIME SECURE ACCESS CODE
+        </span>
+        <h1 style="color: #0f172a; font-size: 42px; font-weight: 800; margin: 0; letter-spacing: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;">
           ${otp}
         </h1>
-        <p style="color:#888;margin:15px 0 0;font-size:13px;">
-          Expires in ${expireMinutes} minutes
+        <span style="color: #ef4444; font-size: 12px; font-weight: 600; display: block; margin-top: 16px;">
+          ⏰ Code window target closes in exactly ${expireMinutes} minutes
+        </span>
+      </div>
+      <div style="background: #f8fafc; border-radius: 12px; padding: 14px 16px; border-left: 3px solid #64748b; margin-bottom: 32px;">
+        <p style="margin: 0; color: #475569; font-size: 12px; line-height: 1.5;">
+          🔒 <strong>Security Enforcement Notice:</strong> Never communicate this string output profile to any automated support channels, vendor nodes, or representatives.
         </p>
       </div>
-      <div style="background:#FFF9E6;border-left:4px solid #FFC107;
-        border-radius:8px;padding:15px;margin:20px 0;">
-        <p style="margin:0;color:#555;font-size:13px;">
-          🔒 <strong>Never share this code</strong> with anyone.
-        </p>
-      </div>
-      <p style="color:#555;">The Waka Charge Team ⚡</p>
+      <p style="color: #64748b; font-size: 14px; margin: 0;">Secured Transactions Group,<br><strong style="color: #0f172a;">Waka Security Center</strong></p>
     `)
   })
 }
 
 // ─────────────────────────────────────────────────
-// Wallet Funded Email
+// Settlement & Inbound Wallet Funding Receipt
 // ─────────────────────────────────────────────────
-const sendWalletFundedEmail = async (
-  email, name, amount, balance
-) => {
+const sendWalletFundedEmail = async (email, name, amount, balance) => {
   try {
     await sendEmail({
       to: email,
-      subject: '✅ Wallet Funded Successfully',
+      subject: `Successful Settlement Notification: ₦${amount.toLocaleString()}`,
       html: wrap(`
-        <h2 style="color:#0D1B2A;">Wallet Funded! 💰</h2>
-        <p style="color:#555;">Hi ${name},</p>
-        <div style="background:#EAF9EE;border-radius:8px;
-          padding:20px;margin:20px 0;">
-          <p style="margin:5px 0;color:#555;">
-            <strong>Amount:</strong> ₦${amount.toLocaleString()}
-          </p>
-          <p style="margin:5px 0;color:#555;">
-            <strong>New Balance:</strong> ₦${balance.toLocaleString()}
-          </p>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <div style="width: 48px; height: 48px; background: #eaf9ee; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px; line-height: 48px;">
+            <span style="color: #22c55e; font-size: 20px; font-weight: bold;">✓</span>
+          </div>
+          <h2 style="color: #0f172a; font-size: 24px; font-weight: 800; margin: 0;">Inbound Settlement Confirmed</h2>
+          <p style="color: #22c55e; font-size: 28px; font-weight: 800; margin: 12px 0 0; font-family: monospace;">+₦${amount.toLocaleString()}</p>
         </div>
-        <p style="color:#555;">
-          Head to your nearest Waka Charge station!
+        <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+          Hi ${name.split(' ')[0]}, a credit event has cleared successfully into your ledger.
         </p>
-        <p style="color:#555;">The Waka Charge Team ⚡</p>
+        <div style="background: #ffffff; border: 1px solid #f1f5f9; border-radius: 16px; padding: 8px 16px; margin-bottom: 32px;">
+          ${rowItem('Transaction Class', 'Wallet Inbound Ledger Deposit')}
+          ${rowItem('Settled Amount', `₦${amount.toLocaleString()}`, true)}
+          ${rowItem('Available Ledger Balance', `₦${balance.toLocaleString()}`)}
+          ${rowItem('Status Flag', 'Successful / Settled')}
+        </div>
+        <p style="color: #475569; font-size: 14px; line-height: 1.5; margin: 0 0 24px;">
+          Your balance is completely available to utilize instantly on any hardware deployments or campus store point-of-sale terminals.
+        </p>
+        <p style="color: #64748b; font-size: 14px; margin: 0;">Waka Settlement Systems,<br><strong style="color: #0f172a;">Operations Dept.</strong></p>
       `)
     })
   } catch (error) {
@@ -912,44 +929,30 @@ const sendWalletFundedEmail = async (
 }
 
 // ─────────────────────────────────────────────────
-// Rental Started Email
+// Hardware Micro-Rental Deployment Confirmation
 // ─────────────────────────────────────────────────
-const sendRentalStartedEmail = async (
-  email, name, rental, device
-) => {
+const sendRentalStartedEmail = async (email, name, rental, device) => {
   try {
     await sendEmail({
       to: email,
-      subject: '⚡ Rental Started',
+      subject: `Deployment Notice: Active Rental ${device}`,
       html: wrap(`
-        <h2 style="color:#0D1B2A;">Rental Active! ⚡</h2>
-        <p style="color:#555;">Hi ${name},</p>
-        <div style="background:#EAF9EE;border-radius:8px;
-          padding:20px;margin:20px 0;">
-          <p style="margin:5px 0;color:#555;">
-            <strong>Device:</strong> ${device}
-          </p>
-          <p style="margin:5px 0;color:#555;">
-            <strong>Duration:</strong> ${rental.selectedHours} hours
-          </p>
-          <p style="margin:5px 0;color:#555;">
-            <strong>Return By:</strong>
-            ${new Date(rental.expectedReturnTime).toLocaleString()}
-          </p>
-          <p style="margin:5px 0;color:#555;">
-            <strong>Deposit:</strong>
-            ₦${rental.depositAmount.toLocaleString()} (refundable)
-          </p>
-        </div>
-        <div style="background:#FFF9E6;border-left:4px solid #FFC107;
-          border-radius:8px;padding:15px;">
-          <p style="margin:0;color:#555;">
-            ⚠️ Return on time to get full deposit back.
-          </p>
-        </div>
-        <p style="color:#555;margin-top:20px;">
-          The Waka Charge Team ⚡
+        <h2 style="color: #0f172a; font-size: 24px; font-weight: 800; tracking: -0.03em; margin: 0 0 12px;">Hardware Deployed Successfully</h2>
+        <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+          Hi ${name.split(' ')[0]}, your rental activation order was processed successfully. Hardware has been released from its locker bay slot.
         </p>
+        <div style="background: #ffffff; border: 1px solid #f1f5f9; border-radius: 16px; padding: 8px 16px; margin-bottom: 24px;">
+          ${rowItem('Leased Asset Class', device)}
+          ${分配_租赁 = rowItem('Allocated Window', `${rental.selectedHours} Hours`)}
+          ${rowItem('Required Return Deadline', new Date(rental.expectedReturnTime).toLocaleString())}
+          ${rowItem('Escrowed Safety Deposit', `₦${rental.depositAmount.toLocaleString()}`)}
+        </div>
+        <div style="background: #fffbeb; border-radius: 16px; padding: 16px; border: 1px solid #fde68a; margin-bottom: 32px;">
+          <p style="margin: 0; color: #b45309; font-size: 13px; font-weight: 500; line-height: 1.5;">
+            ⚠️ <strong>Escrow Terms Tracker:</strong> To maximize trust ratings score metric updates and ensure complete safety collateral return directly to your account immediately, hand over asset frames within parameters.
+          </p>
+        </div>
+        <p style="color: #64748b; font-size: 14px; margin: 0;">Kiosk Management Engines,<br><strong style="color: #0f172a;">Waka Network Infrastructure</strong></p>
       `)
     })
   } catch (error) {
@@ -958,32 +961,33 @@ const sendRentalStartedEmail = async (
 }
 
 // ─────────────────────────────────────────────────
-// Deposit Refunded Email
+// Escrow Collateral Safety Settlement Release
 // ─────────────────────────────────────────────────
-const sendDepositRefundedEmail = async (
-  email, name, amount, balance
-) => {
+const sendDepositRefundedEmail = async (email, name, amount, balance) => {
   try {
     await sendEmail({
       to: email,
-      subject: '💰 Deposit Refunded',
+      subject: `Escrow Safety Collateral Released: ₦${amount.toLocaleString()}`,
       html: wrap(`
-        <h2 style="color:#0D1B2A;">Deposit Refunded! 💰</h2>
-        <p style="color:#555;">Hi ${name},</p>
-        <div style="background:#EAF9EE;border-radius:8px;
-          padding:20px;margin:20px 0;">
-          <p style="margin:5px 0;color:#555;">
-            <strong>Refunded:</strong> ₦${amount.toLocaleString()}
-          </p>
-          <p style="margin:5px 0;color:#555;">
-            <strong>Wallet Balance:</strong>
-            ₦${balance.toLocaleString()}
-          </p>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <div style="width: 48px; height: 48px; background: #eaf9ee; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px; line-height: 48px;">
+            <span style="color: #22c55e; font-size: 20px; font-weight: bold;">💰</span>
+          </div>
+          <h2 style="color: #0f172a; font-size: 24px; font-weight: 800; margin: 0;">Collateral Refund Dispatched</h2>
+          <p style="color: #22c55e; font-size: 28px; font-weight: 800; margin: 12px 0 0; font-family: monospace;">₦${amount.toLocaleString()}</p>
         </div>
-        <p style="color:#555;">
-          Thank you for returning on time. See you next time!
+        <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+          Hi ${name.split(' ')[0]}, your hardware check-in inspection passed smoothly. Escrow holds have dropped back down to base layers.
         </p>
-        <p style="color:#555;">The Waka Charge Team ⚡</p>
+        <div style="background: #ffffff; border: 1px solid #f1f5f9; border-radius: 16px; padding: 8px 16px; margin-bottom: 32px;">
+          ${rowItem('Returned Collateral Asset', `₦${amount.toLocaleString()}`, true)}
+          ${rowItem('Updated Liquidity Balance', `₦${balance.toLocaleString()}`)}
+          ${rowItem('Trust Rank Adjustment', '+4 Points (Excellent Profile)')}
+        </div>
+        <p style="color: #475569; font-size: 14px; line-height: 1.5; margin: 0 0 24px;">
+          We appreciate your prompt check-in synchronization! Your trust metric tracking level has risen positively.
+        </p>
+        <p style="color: #64748b; font-size: 14px; margin: 0;">Waka Clearing Desk,<br><strong style="color: #0f172a;">Risk & Operations Office</strong></p>
       `)
     })
   } catch (error) {
@@ -996,23 +1000,29 @@ const sendPasswordResetEmail = async (email, name, otp) => {
 }
 
 // ─────────────────────────────────────────────────
-// Login Notification Email
+// System Access Session Flag Alert
 // ─────────────────────────────────────────────────
 const sendLoginEmail = async (email, name) => {
   try {
     await sendEmail({
       to: email,
-      subject: 'New Login Detected',
+      subject: 'Security Alert: Active Session Handshake Event Verified',
       html: wrap(`
-        <h2 style="color:#0D1B2A;">New Login</h2>
-        <p style="color:#555;">Hi ${name},</p>
-        <p style="color:#555;">
-          A new login was detected at ${new Date().toLocaleString()}.
+        <h2 style="color: #0f172a; font-size: 22px; font-weight: 800; tracking: -0.02em; margin: 0 0 12px;">New Terminal Session Authorized</h2>
+        <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+          Hi ${name.split(' ')[0]}, our transaction processing stack flagged an inbound account access event.
         </p>
-        <p style="color:#555;">
-          If this was not you, contact us immediately.
-        </p>
-        <p style="color:#555;">The Waka Charge Team ⚡</p>
+        <div style="background: #ffffff; border: 1px solid #f1f5f9; border-radius: 16px; padding: 8px 16px; margin-bottom: 24px;">
+          ${rowItem('Event Class Handshake', 'Account Portal Login Session')}
+          ${rowItem('System Timestamp Clock', new Date().toLocaleString())}
+          ${rowItem('Authentication Pipeline', 'Passed/Verified Link')}
+        </div>
+        <div style="background: #f8fafc; border-radius: 16px; padding: 16px; border: 1px solid #e2e8f0; margin-bottom: 32px;">
+          <p style="margin: 0; color: #475569; font-size: 13px; line-height: 1.5;">
+            🔒 <strong>Context Check:</strong> If this session deployment was initiated directly by your terminal, no adjustments are required. If this event trace maps outside your operational footprint, secure credentials immediately.
+          </p>
+        </div>
+        <p style="color: #64748b; font-size: 14px; margin: 0;">Secured Routing Engines,<br><strong style="color: #0f172a;">Waka Guardian Ops Team</strong></p>
       `)
     })
   } catch (error) {
