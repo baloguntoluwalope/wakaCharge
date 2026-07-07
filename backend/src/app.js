@@ -116,7 +116,7 @@ app.use('/api/v1/payments', paymentRoutes)
 app.use('/api/v1/operator', operatorRoutes)
 app.use('/api/v1/admin', adminRoutes)
 app.use('/api/v1/notifications', notificationRoutes)
-app.use('/api/v1/trust-scores', trustScoreRoutes)
+app.use('/api/v1/trust/score', trustScoreRoutes)
 
 // ─── 5. FALLBACKS & ERROR HANDLING ──────────────────────────────────
 app.use('*', (req, res) => {

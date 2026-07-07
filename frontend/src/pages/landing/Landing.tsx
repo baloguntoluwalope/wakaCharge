@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, useInView, AnimatePresence } from 'framer-motion'
 import {
   Zap, Menu, X, ArrowRight, Battery, Lamp,
@@ -7,7 +7,8 @@ import {
   ChevronDown, Mail, Phone, CheckCircle,
   TrendingUp, Users, Building2, Smartphone,
   CreditCard, RotateCcw, Lock, Sun,
-  BarChart3
+  BarChart3, GraduationCap, Briefcase, Leaf,
+  Sparkles, Rocket, UserPlus, Code2
 } from 'lucide-react'
 import { FiInstagram, FiTwitter } from 'react-icons/fi'
 
@@ -70,6 +71,7 @@ const Nav = () => {
   const [open, setOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 40)
@@ -84,9 +86,19 @@ const Nav = () => {
     { label: 'Roadmap', href: '#roadmap' },
   ]
 
+  // If we're not on the homepage, navigate there first, then scroll
+  // once the sections have actually mounted. Fixes nav links doing
+  // nothing when clicked from any route other than "/".
   const scrollTo = (href: string) => {
-    document.querySelector(href)?.scrollIntoView({ behavior: 'smooth' })
     setOpen(false)
+    if (location.pathname !== '/') {
+      navigate('/')
+      setTimeout(() => {
+        document.querySelector(href)?.scrollIntoView({ behavior: 'smooth' })
+      }, 150)
+    } else {
+      document.querySelector(href)?.scrollIntoView({ behavior: 'smooth' })
+    }
   }
 
   return (
@@ -101,19 +113,26 @@ const Nav = () => {
     >
       <div className="max-w-6xl mx-auto px-5 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => {
+              if (location.pathname !== '/') navigate('/')
+              else window.scrollTo({ top: 0, behavior: 'smooth' })
+            }}
+            className="flex items-center gap-2.5"
+          >
             <div className="w-8 h-8 rounded-xl bg-green-500 flex items-center justify-center">
               <Zap size={16} className="text-white fill-white" />
             </div>
             <span className={`font-black text-lg tracking-tight transition-colors ${scrolled ? 'text-slate-900' : 'text-white'}`}>
               Waka<span className="text-green-400">Charge</span>
             </span>
-          </div>
+          </button>
 
           <div className="hidden lg:flex items-center gap-8">
             {links.map(l => (
               <button
                 key={l.href}
+                type="button"
                 onClick={() => scrollTo(l.href)}
                 className={`text-sm font-medium transition-colors hover:text-green-500 ${scrolled ? 'text-slate-500' : 'text-white/60'}`}
               >
@@ -163,6 +182,7 @@ const Nav = () => {
               {links.map(l => (
                 <button
                   key={l.href}
+                  type="button"
                   onClick={() => scrollTo(l.href)}
                   className="text-left px-4 py-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
                 >
@@ -300,6 +320,16 @@ const MockPhone = () => (
   </div>
 )
 
+// ─── SDG data ─────────────────────────────────────────────────────────────────
+
+const SDGS = [
+  { num: 4,  icon: <GraduationCap size={22} />, title: 'Quality Education',            body: 'Keeping devices charged means uninterrupted study time, even through blackouts.', color: '#c5192d' },
+  { num: 7,  icon: <Sun size={22} />,            title: 'Affordable & Clean Energy',     body: 'Solar-powered kiosks bring reliable, low-cost energy access to every campus.',    color: '#fcc30b' },
+  { num: 8,  icon: <Briefcase size={22} />,      title: 'Decent Work & Economic Growth', body: 'Local operator jobs and a growing Trust Score credit system for students.',      color: '#a21942' },
+  { num: 11, icon: <Building2 size={22} />,      title: 'Sustainable Cities',            body: 'Shared, reusable devices reduce waste versus everyone buying their own gear.',    color: '#fd9d24' },
+  { num: 13, icon: <Leaf size={22} />,           title: 'Climate Action',                body: 'Renewable-powered kiosks cut reliance on generators and fossil fuel backup.',     color: '#3f7e44' },
+]
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Landing() {
@@ -334,7 +364,22 @@ export default function Landing() {
           }}
         />
 
-        <div className="relative max-w-6xl mx-auto px-5 lg:px-8 pt-28 pb-20">
+        {/* Pilot banner */}
+        <div className="relative max-w-6xl mx-auto px-5 lg:px-8 w-full" style={{ paddingTop: 84 }}>
+          <FadeIn>
+            <div
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
+              style={{ background: 'rgba(14,165,233,0.1)', border: '1px solid rgba(14,165,233,0.25)' }}
+            >
+              <Rocket size={12} style={{ color: '#38bdf8' }} />
+              <span style={{ color: '#7dd3fc', fontSize: 11, fontWeight: 700 }}>
+                Campus pilot launching soon — join the waitlist
+              </span>
+            </div>
+          </FadeIn>
+        </div>
+
+        <div className="relative max-w-6xl mx-auto px-5 lg:px-8 pt-10 pb-20">
           <div className="grid lg:grid-cols-2 gap-16 lg:gap-20 items-center">
             <div>
               <motion.div initial={{ opacity: 0, y: 32 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}>
@@ -471,7 +516,7 @@ export default function Landing() {
       </section>
 
       {/* ── HOW IT WORKS ── */}
-      <section id="how" style={{ padding: '100px 0', background: '#f8fafc' }}>
+      <section id="how" style={{ padding: '100px 0', background: '#f8fafc', scrollMarginTop: 72 }}>
         <div className="max-w-6xl mx-auto px-5 lg:px-8">
           <FadeIn className="text-center mb-16">
             <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#22c55e', marginBottom: 12 }}>
@@ -521,7 +566,7 @@ export default function Landing() {
       </section>
 
       {/* ── DEVICES ── */}
-      <section id="devices" style={{ padding: '100px 0', background: '#fff' }}>
+      <section id="devices" style={{ padding: '100px 0', background: '#fff', scrollMarginTop: 72 }}>
         <div className="max-w-6xl mx-auto px-5 lg:px-8">
           <FadeIn className="text-center mb-16">
             <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#22c55e', marginBottom: 12 }}>
@@ -581,7 +626,7 @@ export default function Landing() {
       </section>
 
       {/* ── TRUST SCORE ── */}
-      <section id="trust" style={{ padding: '100px 0', background: '#f8fafc' }}>
+      <section id="trust" style={{ padding: '100px 0', background: '#f8fafc', scrollMarginTop: 72 }}>
         <div className="max-w-6xl mx-auto px-5 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <FadeIn direction="left">
@@ -696,8 +741,53 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ── SDG GOALS ── */}
+      <section style={{ padding: '100px 0', background: '#f8fafc' }}>
+        <div className="max-w-6xl mx-auto px-5 lg:px-8">
+          <FadeIn className="text-center mb-16">
+            <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#22c55e', marginBottom: 12 }}>
+              Impact
+            </p>
+            <h2 style={{ fontSize: 'clamp(28px, 4vw, 46px)', fontWeight: 900, color: '#0f172a', lineHeight: 1.1, marginBottom: 16 }}>
+              Aligned with the UN Sustainable<br />Development Goals
+            </h2>
+            <p style={{ color: '#64748b', fontSize: 17, maxWidth: 520, margin: '0 auto' }}>
+              Every rental supports outcomes that matter well beyond a single charge.
+            </p>
+          </FadeIn>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {SDGS.map((g, i) => (
+              <FadeIn key={g.num} delay={i * 0.07}>
+                <div
+                  className="p-5 rounded-2xl h-full flex flex-col"
+                  style={{ background: '#fff', border: '1px solid #e2e8f0' }}
+                >
+                  <div className="flex items-center gap-2.5 mb-4">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: `${g.color}18`, color: g.color }}
+                    >
+                      {g.icon}
+                    </div>
+                    <span
+                      className="text-xs font-black px-2 py-1 rounded-lg"
+                      style={{ background: `${g.color}18`, color: g.color }}
+                    >
+                      SDG {g.num}
+                    </span>
+                  </div>
+                  <h3 style={{ fontWeight: 800, color: '#0f172a', fontSize: 14, marginBottom: 6 }}>{g.title}</h3>
+                  <p style={{ color: '#64748b', fontSize: 12.5, lineHeight: 1.6 }}>{g.body}</p>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── ROADMAP ── */}
-      <section id="roadmap" style={{ padding: '100px 0', background: '#f8fafc' }}>
+      <section id="roadmap" style={{ padding: '100px 0', background: '#fff', scrollMarginTop: 72 }}>
         <div className="max-w-6xl mx-auto px-5 lg:px-8">
           <FadeIn className="text-center mb-16">
             <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#22c55e', marginBottom: 12 }}>
@@ -756,6 +846,72 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ── COMING SOON STRIP ── */}
+      <section style={{ padding: '80px 0', background: '#f8fafc' }}>
+        <div className="max-w-6xl mx-auto px-5 lg:px-8">
+          <FadeIn className="text-center mb-10">
+            <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#22c55e', marginBottom: 12 }}>
+              On the horizon
+            </p>
+            <h2 style={{ fontSize: 'clamp(24px, 3vw, 36px)', fontWeight: 900, color: '#0f172a' }}>
+              Coming very soon
+            </h2>
+          </FadeIn>
+
+          <div className="grid sm:grid-cols-2 gap-5">
+            <FadeIn delay={0.05}>
+              <div
+                className="p-6 rounded-2xl h-full flex flex-col"
+                style={{ background: '#fff', border: '1px solid #e2e8f0' }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: '#fffbeb', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <UserPlus size={20} />
+                  </div>
+                  <span
+                    style={{ fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 99, background: '#fffbeb', color: '#d97706' }}
+                  >
+                    Coming soon
+                  </span>
+                </div>
+                <h3 style={{ fontWeight: 900, color: '#0f172a', fontSize: 17, marginBottom: 8 }}>
+                  Operator recruitment opening
+                </h3>
+                <p style={{ color: '#64748b', fontSize: 13.5, lineHeight: 1.7, flex: 1 }}>
+                  We're onboarding kiosk operators across new campuses soon. Manage a station,
+                  earn steady income, and help keep your campus powered up.
+                </p>
+              </div>
+            </FadeIn>
+
+            <FadeIn delay={0.12}>
+              <div
+                className="p-6 rounded-2xl h-full flex flex-col"
+                style={{ background: '#fff', border: '1px solid #e2e8f0' }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: '#f0f9ff', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Rocket size={20} />
+                  </div>
+                  <span
+                    style={{ fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 99, background: '#f0f9ff', color: '#0284c7' }}
+                  >
+                    Coming soon
+                  </span>
+                </div>
+                <h3 style={{ fontWeight: 900, color: '#0f172a', fontSize: 17, marginBottom: 8 }}>
+                  New campus pilots launching
+                </h3>
+                <p style={{ color: '#64748b', fontSize: 13.5, lineHeight: 1.7, flex: 1 }}>
+                  We're preparing to pilot Waka Charge at more universities. Reach out if you'd
+                  like your campus considered for the next rollout.
+                </p>
+              </div>
+            </FadeIn>
+          </div>
+        </div>
+      </section>
+
       {/* ── PORTALS ── */}
       <section style={{ padding: '80px 0', background: '#060f1a' }}>
         <div className="max-w-6xl mx-auto px-5 lg:px-8">
@@ -805,8 +961,59 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── CTA ── */}
-      <section style={{ padding: '100px 0', background: '#fff' }}>
+      {/* ── PARTNERS ── */}
+      <section style={{ padding: '80px 0', background: '#fff' }}>
+        <div className="max-w-6xl mx-auto px-5 lg:px-8">
+          <FadeIn className="text-center mb-12">
+            <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#22c55e', marginBottom: 12 }}>
+              Backed by
+            </p>
+            <h2 style={{ fontSize: 'clamp(24px, 3vw, 36px)', fontWeight: 900, color: '#0f172a' }}>
+              Our partners & supporters
+            </h2>
+          </FadeIn>
+
+          <div className="grid sm:grid-cols-2 gap-5 max-w-2xl mx-auto">
+            <FadeIn delay={0.05}>
+              <div
+                className="p-7 rounded-2xl flex flex-col items-center text-center gap-4"
+                style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
+              >
+                <div style={{ width: 56, height: 56, borderRadius: 16, background: '#0b1220', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ color: '#fff', fontWeight: 900, fontSize: 20, letterSpacing: '-0.02em' }}>N</span>
+                </div>
+                <div>
+                  <p style={{ fontWeight: 900, color: '#0f172a', fontSize: 16 }}>Nomba</p>
+                  <p style={{ color: '#64748b', fontSize: 13, marginTop: 4, lineHeight: 1.6 }}>
+                    Payments infrastructure partner powering the Waka Wallet — virtual accounts,
+                    instant funding and secure transactions.
+                  </p>
+                </div>
+              </div>
+            </FadeIn>
+
+            <FadeIn delay={0.12}>
+              <div
+                className="p-7 rounded-2xl flex flex-col items-center text-center gap-4"
+                style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
+              >
+                <div style={{ width: 56, height: 56, borderRadius: 16, background: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Code2 size={24} className="text-white" />
+                </div>
+                <div>
+                  <p style={{ fontWeight: 900, color: '#0f172a', fontSize: 16 }}>DevCareer</p>
+                  <p style={{ color: '#64748b', fontSize: 13, marginTop: 4, lineHeight: 1.6 }}>
+                    Technical training and build support, helping shape the engineering
+                    behind the Waka Charge platform.
+                  </p>
+                </div>
+              </div>
+            </FadeIn>
+          </div>
+        </div>
+      </section>
+{/* ── CTA ── */}
+      <section style={{ padding: '100px 0', background: '#f8fafc' }}>
         <div className="max-w-2xl mx-auto px-5 text-center">
           <FadeIn>
             <div style={{ width: 60, height: 60, borderRadius: 20, background: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
@@ -863,7 +1070,7 @@ export default function Landing() {
                 {[
                   { icon: <FiTwitter size={15} />, href: '#' },
                   { icon: <FiInstagram size={15} />, href: '#' },
-                  { icon: <Mail size={15} />, href: 'mailto:support@wakacharge.com' },
+                  { icon: <Mail size={15} />, href: 'mailto:wakacharge1@gmail.com' },
                 ].map((s, i) => (
                   <a
                     key={i}
@@ -901,8 +1108,8 @@ export default function Landing() {
               <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.25)', marginBottom: 16 }}>Contact</p>
               <div className="flex flex-col gap-3 mb-8">
                 {[
-                  { icon: <Mail size={13} />, text: 'support@wakacharge.com' },
-                  { icon: <Phone size={13} />, text: '+234 800 000 0000' },
+                  { icon: <Mail size={13} />, text: 'wakacharge1@gmail.com' },
+                  { icon: <Phone size={13} />, text: '0808 189 6231' },
                   { icon: <MapPin size={13} />, text: 'Lagos, Nigeria' },
                 ].map(c => (
                   <div key={c.text} className="flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>
@@ -941,9 +1148,8 @@ export default function Landing() {
         </div>
       </footer>
     </div>
-  )
+  );
 }
-
 
 
 // import { useState, useEffect, useRef } from 'react'

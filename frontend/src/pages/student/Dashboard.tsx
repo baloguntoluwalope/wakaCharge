@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useQueries } from '@tanstack/react-query'
+import { motion } from 'framer-motion'
 import { useAuth } from '../../context/AuthContext'
 import { paymentsApi } from '../../api/payments.api'
 import { rentalsApi } from '../../api/rentals.api'
@@ -9,9 +9,8 @@ import { WalletCard } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { EmptyWallet } from '../../components/student/EmptyWallet'
 import { useCountdown } from '../../hooks/useCountdown'
-import { greeting, formatCurrency, deviceEmoji, deviceLabel } from '../../utils'
+import { greeting, deviceEmoji, deviceLabel, formatCurrency } from '../../utils'
 import { DEVICE_CONFIG, TRUST_LEVELS } from '../../theme/tokens'
-import { useToast } from '../../components/ui/Toast'
 import type { Rental } from '../../types'
 import {
   MdNotifications,
@@ -25,8 +24,6 @@ import {
   MdKeyboardReturn,
   MdTimer,
   MdWarning,
-  MdLock,
-  MdLockOpen,
 } from 'react-icons/md'
 
 // ─── Shimmer skeleton ─────────────────────────────────────
@@ -54,7 +51,7 @@ export default function Dashboard() {
   const location = useLocation()
   const justRegistered = (location.state as any)?.justRegistered
 
-  // Fire all 3 requests in PARALLEL
+  // Parallel data fetching architecture
   const [walletQuery, rentalsQuery, notifQuery] = useQueries({
     queries: [
       {
@@ -66,7 +63,7 @@ export default function Dashboard() {
         queryKey: ['rentals', 'active'],
         queryFn: () => rentalsApi.getMyRentals({ status: 'active', limit: 3 }),
         staleTime: 1000 * 30,
-        refetchInterval: 30000, // poll every 30s
+        refetchInterval: 30000, 
       },
       {
         queryKey: ['notifications'],
@@ -188,8 +185,8 @@ export default function Dashboard() {
               <ActiveRentalCard
                 key={rental._id}
                 rental={rental}
-                onManage={() => navigate(`/rentals/${rental._id}`)}
-                onReturn={() => navigate(`/rentals/${rental._id}`)}
+                // Updated: Points to unified URL parameters on the main layout view
+                onManage={() => navigate(`/rentals?id=${rental._id}`)}
               />
             ))}
           </div>
@@ -362,200 +359,110 @@ export default function Dashboard() {
   )
 }
 
-// ─── Active Rental Card ────────────────────────────────────
+// ─── Active Rental Card Layout ──────────────────────────────
 const ActiveRentalCard = ({
   rental,
   onManage,
-  onReturn,
 }: {
   rental: Rental
   onManage: () => void
-  onReturn: () => void
 }) => {
   const { timeLeft, isOverdue } = useCountdown(rental.expectedReturnTime)
-  const { toast } = useToast()
-  const qc = useQueryClient()
-
-  const { mutate: initiateReturn, isPending: returning } = useMutation({
-    mutationFn: () => rentalsApi.initiateReturn(rental._id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['rentals'] })
-      window.location.href = `/rentals/${rental._id}`
-    },
-    onError: (err: any) => {
-      toast(err.response?.data?.message || 'Could not initiate return', 'error')
-    },
-  })
 
   const urgencyLevel = isOverdue
     ? 'overdue'
     : (() => {
         const diff = new Date(rental.expectedReturnTime).getTime() - Date.now()
-        const mins = diff / 60000
-        if (mins < 30) return 'urgent'
-        return 'normal'
+        return diff / 60000 < 30 ? 'urgent' : 'normal'
       })()
 
-  const borderColor = {
-    overdue: 'border-red-300',
-    urgent: 'border-amber-300',
-    normal: 'border-green-200',
+  const colors = {
+    overdue: { border: 'border-red-300', bg: 'bg-red-50', bar: 'bg-red-500', btn: 'bg-red-500 hover:bg-red-600 text-white' },
+    urgent:  { border: 'border-amber-300', bg: 'bg-amber-50', bar: 'bg-amber-500', btn: 'bg-amber-500 hover:bg-amber-400 text-white' },
+    normal:  { border: 'border-green-200', bg: 'bg-green-50', bar: 'bg-green-500', btn: 'bg-green-500 hover:bg-green-400 text-white' },
   }[urgencyLevel]
 
-  const headerBg = {
-    overdue: 'bg-red-500',
-    urgent: 'bg-amber-500',
-    normal: 'bg-green-500',
-  }[urgencyLevel]
-
-  const bgColor = {
-    overdue: 'bg-red-50',
-    urgent: 'bg-amber-50',
-    normal: 'bg-green-50',
+  const timeColor = {
+    overdue: 'text-red-500',
+    urgent:  'text-amber-600',
+    normal:  'text-green-600',
   }[urgencyLevel]
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`rounded-3xl border-2 overflow-hidden ${borderColor} ${bgColor}`}
+      className={`rounded-3xl border-2 overflow-hidden ${colors.border} ${colors.bg}`}
     >
-      {/* Status header bar */}
-      <div className={`${headerBg} px-4 py-2 flex items-center justify-between`}>
-        <div className="flex items-center gap-2">
-          {urgencyLevel === 'overdue' ? (
-            <MdWarning size={15} className="text-white" />
-          ) : urgencyLevel === 'urgent' ? (
-            <MdTimer size={15} className="text-white" />
-          ) : (
-            <MdBatteryChargingFull size={15} className="text-white" />
-          )}
-          <p className="text-white text-xs font-bold uppercase tracking-widest">
-            {urgencyLevel === 'overdue'
-              ? 'Overdue — return now'
-              : urgencyLevel === 'urgent'
-              ? 'Due soon'
-              : 'Active rental'}
-          </p>
-        </div>
-        <div className="flex items-center gap-1.5">
-          {rental.lockerStatus === 'locked' ? (
-            <MdLock size={14} className="text-white/70" />
-          ) : (
-            <MdLockOpen size={14} className="text-white" />
-          )}
-          <p className="text-white/80 text-xs font-bold">
-            Locker {rental.lockerAssigned}
-          </p>
-        </div>
+      {/* Status Bar */}
+      <div className={`${colors.bar} px-4 py-2 flex items-center justify-between`}>
+        <p className="text-white text-xs font-bold uppercase tracking-widest">
+          {urgencyLevel === 'overdue'
+            ? '⚠️ Overdue — return now'
+            : urgencyLevel === 'urgent'
+            ? '⏱ Due soon'
+            : '⚡ Active rental'
+          }
+        </p>
+        <p className="text-white/80 text-xs font-bold">
+          Locker {rental.lockerAssigned || '—'}
+        </p>
       </div>
 
-      {/* Card body */}
       <div className="p-4">
         <div className="flex items-start gap-3 mb-4">
           <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-2xl flex-shrink-0 shadow-sm">
             {deviceEmoji(rental.deviceType)}
           </div>
-
-          <div className="flex-1 min-w-0">
+          <div className="flex-1">
             <p className="font-black text-navy-900 text-base">
               {deviceLabel(rental.deviceType)}
             </p>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <MdTimer
-                size={13}
-                className={
-                  urgencyLevel === 'overdue'
-                    ? 'text-red-500'
-                    : urgencyLevel === 'urgent'
-                    ? 'text-amber-500'
-                    : 'text-green-600'
-                }
-              />
-              <p
-                className={`text-sm font-black ${
-                  urgencyLevel === 'overdue'
-                    ? 'text-red-500'
-                    : urgencyLevel === 'urgent'
-                    ? 'text-amber-600'
-                    : 'text-green-600'
-                }`}
-              >
-                {timeLeft}
-              </p>
-            </div>
+            <p className={`text-sm font-black mt-0.5 ${timeColor}`}>
+              {timeLeft}
+            </p>
             <p className="text-xs text-slate-400 mt-0.5">
-              Deposit: {formatCurrency(rental.depositAmount)} · refunded on return
+              Deposit {formatCurrency(rental.depositAmount)} · refunded on return
             </p>
           </div>
         </div>
 
-        {/* Confirmation code */}
-        <div className="bg-white rounded-2xl px-4 py-3 mb-4 flex items-center justify-between border border-slate-200">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
-              Your return code
-            </p>
-            <p className="font-mono font-black text-2xl tracking-widest text-amber-500">
-              {rental.confirmationCode}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] text-slate-400">Give device to operator</p>
-            <p className="text-[10px] text-slate-400">then enter this code</p>
-          </div>
+        {/* Confirmation Code */}
+        <div className="bg-white rounded-2xl px-4 py-3 mb-4 border border-slate-200">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+            Return code
+          </p>
+          <p className="font-mono font-black text-2xl tracking-[0.25em] text-amber-500">
+            {rental.confirmationCode}
+          </p>
         </div>
 
-        {/* Action buttons */}
+        {/* Formatted Actions targeting the onManage handler interface */}
         <div className="flex gap-2.5">
           <motion.button
             whileTap={{ scale: 0.97 }}
-            onClick={onReturn}
-            disabled={returning}
-            className={`
-              flex-1 flex items-center justify-center gap-2
-              py-3 rounded-2xl font-black text-sm transition-all
-              ${
-                urgencyLevel === 'overdue'
-                  ? 'bg-red-500 text-white hover:bg-red-600'
-                  : urgencyLevel === 'urgent'
-                  ? 'bg-amber-500 text-white hover:bg-amber-600'
-                  : 'bg-green-500 text-white hover:bg-green-400'
-              }
-              disabled:opacity-50
-            `}
+            onClick={onManage}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm transition-all ${colors.btn}`}
           >
-            {returning ? (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <MdKeyboardReturn size={18} />
-            )}
+            <MdKeyboardReturn size={18} />
             Return device
           </motion.button>
-
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={onManage}
-            className="px-4 py-3 rounded-2xl bg-white border border-slate-200 text-slate-600 text-sm font-bold hover:bg-slate-50 transition-all flex-shrink-0 flex items-center gap-1.5"
+            className="px-4 py-3 rounded-2xl bg-white border border-slate-200 text-slate-600 text-sm font-bold hover:bg-slate-50 transition-all flex-shrink-0"
           >
             Details
-            <MdArrowForward size={14} />
           </motion.button>
         </div>
 
-        {/* Overdue warning */}
         {urgencyLevel === 'overdue' && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-3 bg-red-100 border border-red-200 rounded-2xl px-3 py-2 flex items-start gap-2"
-          >
+          <div className="mt-3 bg-red-100 border border-red-200 rounded-2xl px-3 py-2.5 flex items-start gap-2">
             <MdWarning size={14} className="text-red-500 mt-0.5 flex-shrink-0" />
             <p className="text-red-600 text-xs leading-relaxed">
-              Your rental is overdue. Late fees are being applied.
-              Return immediately to minimize charges.
+              Late fees are being applied. Return immediately to minimize charges.
             </p>
-          </motion.div>
+          </div>
         )}
       </div>
     </motion.div>

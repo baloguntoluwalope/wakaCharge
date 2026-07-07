@@ -356,23 +356,23 @@ const verifyResetOTP = async (req, res) => {
 // ─── PASSWORD RESET — STEP 3: Set new password ───────────────────────────────
 
 const resetPassword = async (req, res) => {
-  const { email, otp, newPassword } = req.body
+  const { email, password } = req.body
 
-  if (!email || !otp || !newPassword) {
+  if (!email || !password) {
     return res.status(400).json({
       success: false,
-      message: 'Please provide email, OTP and new password'
+      message: 'Please provide email and password'
     })
   }
 
-  if (newPassword.length < 6) {
+  if (password.length < 6) {
     return res.status(400).json({
       success: false,
       message: 'Password must be at least 6 characters'
     })
   }
 
-  // Re-verify OTP before resetting — read-only existence check
+  // Ensure the reset OTP has already been verified
   const otpRecord = await OTP.findOne({
     email: email.toLowerCase().trim(),
     type: 'reset',
@@ -386,15 +386,23 @@ const resetPassword = async (req, res) => {
     })
   }
 
-  // NOT .lean() — password gets mutated and .save()'d (hashed via pre-save hook)
-  const user = await User.findOne({ email: email.toLowerCase().trim() })
+  // Find the user
+  const user = await User.findOne({
+    email: email.toLowerCase().trim()
+  })
+
   if (!user) {
-    return res.status(404).json({ success: false, message: 'User not found' })
+    return res.status(404).json({
+      success: false,
+      message: 'User not found'
+    })
   }
 
-  user.password = newPassword
+  // Update password
+  user.password = password
   await user.save()
 
+  // Remove the verified OTP so it cannot be reused
   await OTP.deleteOne({ _id: otpRecord._id })
 
   res.status(200).json({
