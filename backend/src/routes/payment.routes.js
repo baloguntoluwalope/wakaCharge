@@ -33,7 +33,8 @@ const { cacheMiddleware } = require('../services/cache.service')
  *
  *     ### Two Ways To Fund Wallet
  *     1. **Virtual Account** — Transfer to your Nomba account number. Instant via webhook,
- *        or confirm manually via GET /verify-transfer if no public webhook URL is configured yet.
+ *        or confirm manually via GET /verify-transfer/{reference} if no public webhook
+ *        URL is configured yet — the student provides the reference from their transfer receipt.
  *     2. **Checkout** — Pay by card via Nomba checkout link.
  *
  *     ### Security Features
@@ -153,7 +154,7 @@ router.get('/virtual-account', protect, getVirtualAccount)
 
 /**
  * @swagger
- * /api/v1/payments/verify-transfer:
+ * /api/v1/payments/verify-transfer/{reference}:
  *   get:
  *     summary: Manually confirm a virtual account transfer (webhook fallback)
  *     tags: [Payments]
@@ -161,15 +162,25 @@ router.get('/virtual-account', protect, getVirtualAccount)
  *       - bearerAuth: []
  *     description: |
  *       Use this while no public webhook URL is configured yet, or as a
- *       manual "I've paid" check for the student.
+ *       manual "I've paid" check.
  *
- *       Calls Nomba directly to list recent transactions on the student's
- *       virtual account, and credits the wallet for any successful transfer
- *       that hasn't already been recorded — safe to call repeatedly, since
- *       each transfer reference is only ever credited once.
+ *       The student provides the exact transaction reference from their
+ *       bank transfer receipt/app. We ask Nomba directly whether that
+ *       specific transaction succeeded, verify it belongs to the student's
+ *       own virtual account, and credit the wallet if it hasn't already
+ *       been recorded — safe to call repeatedly, since each reference is
+ *       only ever credited once.
  *
  *       Once a public webhook URL is set up, this becomes an optional
  *       backup rather than the primary confirmation path.
+ *     parameters:
+ *       - in: path
+ *         name: reference
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Transaction reference from the student's bank transfer
+ *         example: TRF-20260707-ABC123
  *     responses:
  *       200:
  *         description: Transfer check result
@@ -191,13 +202,15 @@ router.get('/virtual-account', protect, getVirtualAccount)
  *                   type: number
  *                   example: 3500
  *       400:
- *         description: No virtual account exists yet
+ *         description: No virtual account exists yet, or reference missing
  *       401:
  *         description: Not authorized
+ *       403:
+ *         description: Transaction does not belong to this student's virtual account
  *       502:
  *         description: Could not reach Nomba to verify
  */
-router.get('/verify-transfer', protect, verifyVirtualAccountFunding)
+router.get('/verify-transfer/:reference', protect, verifyVirtualAccountFunding)
 
 // ─────────────────────────────────────────────────
 // CHECKOUT

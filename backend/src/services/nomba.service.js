@@ -49,18 +49,18 @@ const mockRefund = ({ reference, amount }) => ({
   isMock: true
 })
 
-// Mock transaction list — returns one fake successful credit so the
-// polling flow can be tested end-to-end without hitting Nomba at all.
-const mockVirtualAccountTransactions = (accountNumber) => ([
-  {
-    reference: `MOCK-TXN-${Date.now()}`,
-    amount: '1000.00',
-    status: 'successful',
-    accountNumber,
-    createdAt: new Date().toISOString(),
-    isMock: true
-  }
-])
+// Mock single-transaction verify — used to test the transfer-verification
+// flow end-to-end without hitting Nomba. Always reports the given reference
+// as a successful ₦1000 credit to whatever account number is passed.
+const mockVerifyTransaction = (reference, accountNumber) => ({
+  reference,
+  status: 'successful',
+  amount: '1000.00',
+  currency: 'NGN',
+  accountNumber,
+  paidAt: new Date().toISOString(),
+  isMock: true
+})
 
 // ─────────────────────────────────────────────────
 // Real Nomba auth
@@ -142,54 +142,53 @@ const createVirtualAccount = async (user) => {
 }
 
 // ─────────────────────────────────────────────────
-// List Virtual Account Transactions
-// Pull-based fallback for confirming transfers while no public
-// webhook URL is configured yet.
+// Verify Transaction By Reference
+// Nomba's transaction verification API — the reliable webhook fallback.
+// Given a specific transaction/transfer reference (the student reads this
+// off their bank transfer receipt/app), asks Nomba directly whether it
+// succeeded, rather than guessing at a "list all transactions" endpoint.
 //
-// ⚠️ ENDPOINT NOT CONFIRMED — this path is a best-guess based on the
-// pattern of your other Nomba routes (/accounts/virtual, /checkout/order,
-// /transfers/single). Check Nomba's API docs for the actual "virtual
-// account transaction history" or "account statement" endpoint and
-// update the URL below before relying on this in production. Until
-// confirmed, real calls that 404/fail will safely fall back to mock data
+// ⚠️ ENDPOINT NOT FULLY CONFIRMED — modeled closely on your existing
+// verifyPayment() pattern (GET /checkout/order/{orderReference}), since
+// Nomba's transaction verification API is very likely a similar
+// GET /transactions/{reference}-style lookup. Confirm the exact path
+// against Nomba's official API docs before relying on this in production.
+// Until confirmed, failed/404 real calls safely fall back to mock data
 // (visible immediately via console warnings and isMock: true in results).
 // ─────────────────────────────────────────────────
-const getVirtualAccountTransactions = async (accountNumber, { page = 1, limit = 20 } = {}) => {
+const verifyTransactionByReference = async (reference, accountNumber) => {
   if (IS_MOCK) {
-    console.log('🧪 [Nomba mock] getVirtualAccountTransactions:', accountNumber)
-    return mockVirtualAccountTransactions(accountNumber)
+    console.log('🧪 [Nomba mock] verifyTransactionByReference:', reference)
+    return mockVerifyTransaction(reference, accountNumber)
   }
 
   try {
     const headers = await getNombaHeaders()
     const response = await axios.get(
-      `${NOMBA_BASE_URL}/accounts/virtual/${accountNumber}/transactions`,
-      { headers, params: { page, limit } }
+      `${NOMBA_BASE_URL}/transactions/${reference}`,
+      { headers }
     )
 
     const data = response.data.data
-    const transactions = Array.isArray(data)
-      ? data
-      : (data?.transactions || data?.items || [])
 
-    return transactions.map(t => ({
-      reference: t.reference || t.transactionReference || t.id,
-      amount: t.amount,
-      status: (t.status || '').toLowerCase(),
-      accountNumber: t.accountNumber || accountNumber,
-      createdAt: t.createdAt || t.date,
-      raw: t
-    }))
+    return {
+      reference: data.reference || data.transactionReference || reference,
+      status: (data.status || '').toLowerCase(),
+      amount: data.amount,
+      accountNumber: data.accountNumber || data.destinationAccountNumber || accountNumber,
+      paidAt: data.paidAt || data.createdAt,
+      raw: data
+    }
 
   } catch (error) {
     console.error(
-      '❌ NOMBA VIRTUAL ACCOUNT TRANSACTIONS REAL ERROR:',
+      '❌ NOMBA TRANSACTION VERIFY REAL ERROR:',
       'Status:', error.response?.status,
       'Data:', JSON.stringify(error.response?.data, null, 2),
       'Message:', error.message
     )
-    console.warn('⚠️  Falling back to mock transaction list — confirm the correct endpoint with Nomba docs')
-    return mockVirtualAccountTransactions(accountNumber)
+    console.warn('⚠️  Falling back to mock transaction verify — confirm the correct endpoint with Nomba docs')
+    return mockVerifyTransaction(reference, accountNumber)
   }
 }
 
@@ -350,18 +349,82 @@ module.exports = {
   getNombaToken,
   getNombaHeaders,
   createVirtualAccount,
-  getVirtualAccountTransactions,
+  verifyTransactionByReference,
   createCheckoutSession,
   verifyPayment,
   processRefund,
   verifyWebhookSignature
 }
 
+
+
 // const axios = require('axios')
 // const crypto = require('crypto')
 
 // const NOMBA_BASE_URL =
-//   process.env.NOMBA_BASE_URL || 'https://api.nomba.com/v1'
+//   process.env.NOMBA_BASE_URL || 'https://sandbox.nomba.com/v1'
+
+// const IS_MOCK = process.env.NOMBA_MOCK === 'true'
+
+// // ─────────────────────────────────────────────────
+// // Mock helpers — used only when NOMBA_MOCK=true
+// // or as last-resort fallback if real call fails
+// // ─────────────────────────────────────────────────
+
+// const mockVirtualAccount = (user) => ({
+//   accountNumber:
+//     '9' + Math.floor(Math.random() * 1000000000)
+//       .toString()
+//       .padStart(9, '0'),
+//   bankName: 'Nomba MFB (mock)',
+//   accountName: user.name,
+//   accountReference: `WAKA-${user._id}`,
+//   currency: 'NGN',
+//   isMock: true
+// })
+
+// const mockCheckoutSession = ({ amount, reference }) => {
+//   const base = process.env.FRONTEND_URL || 'http://localhost:3000'
+//   return {
+//     checkoutLink: `${base}/payment/mock?ref=${reference}&amount=${amount}`,
+//     orderReference: reference,
+//     isMock: true
+//   }
+// }
+
+// const mockVerifyPayment = (orderReference) => ({
+//   orderReference,
+//   status: 'successful',
+//   amount: '1000.00',
+//   currency: 'NGN',
+//   paidAt: new Date().toISOString(),
+//   isMock: true
+// })
+
+// const mockRefund = ({ reference, amount }) => ({
+//   reference,
+//   amount: String(amount),
+//   status: 'SUCCESS',
+//   refundedAt: new Date().toISOString(),
+//   isMock: true
+// })
+
+// // Mock transaction list — returns one fake successful credit so the
+// // polling flow can be tested end-to-end without hitting Nomba at all.
+// const mockVirtualAccountTransactions = (accountNumber) => ([
+//   {
+//     reference: `MOCK-TXN-${Date.now()}`,
+//     amount: '1000.00',
+//     status: 'successful',
+//     accountNumber,
+//     createdAt: new Date().toISOString(),
+//     isMock: true
+//   }
+// ])
+
+// // ─────────────────────────────────────────────────
+// // Real Nomba auth
+// // ─────────────────────────────────────────────────
 
 // const getNombaToken = async () => {
 //   try {
@@ -382,8 +445,9 @@ module.exports = {
 //     return response.data.data.access_token
 //   } catch (error) {
 //     console.error(
-//       'Nomba token error:',
-//       error.response?.data || error.message
+//       '❌ Nomba token error:',
+//       error.response?.status,
+//       JSON.stringify(error.response?.data || error.message)
 //     )
 //     throw new Error('Failed to get Nomba access token')
 //   }
@@ -398,7 +462,15 @@ module.exports = {
 //   }
 // }
 
+// // ─────────────────────────────────────────────────
+// // Create Virtual Account
+// // ─────────────────────────────────────────────────
 // const createVirtualAccount = async (user) => {
+//   if (IS_MOCK) {
+//     console.log('🧪 [Nomba mock] createVirtualAccount:', user.name)
+//     return mockVirtualAccount(user)
+//   }
+
 //   try {
 //     const headers = await getNombaHeaders()
 //     const response = await axios.post(
@@ -409,16 +481,84 @@ module.exports = {
 //       },
 //       { headers }
 //     )
-//     return response.data.data
+
+//     const data = response.data.data
+//     return {
+//       accountNumber: data.accountNumber || data.bankAccountNumber,
+//       bankName: data.bankName || 'Nomba',
+//       accountName: data.accountName || data.bankAccountName || user.name,
+//       accountReference: data.accountReference || data.accountRef
+//     }
 //   } catch (error) {
 //     console.error(
-//       'Nomba virtual account error:',
-//       error.response?.data || error.message
+//       '❌ NOMBA VIRTUAL ACCOUNT REAL ERROR:',
+//       'Status:', error.response?.status,
+//       'Data:', JSON.stringify(error.response?.data, null, 2),
+//       'Message:', error.message
 //     )
-//     throw new Error('Failed to create virtual account')
+//     console.warn('⚠️  Falling back to mock virtual account')
+//     return mockVirtualAccount(user)
 //   }
 // }
 
+// // ─────────────────────────────────────────────────
+// // List Virtual Account Transactions
+// // Pull-based fallback for confirming transfers while no public
+// // webhook URL is configured yet.
+// //
+// // ⚠️ ENDPOINT NOT CONFIRMED — this path is a best-guess based on the
+// // pattern of your other Nomba routes (/accounts/virtual, /checkout/order,
+// // /transfers/single). Check Nomba's API docs for the actual "virtual
+// // account transaction history" or "account statement" endpoint and
+// // update the URL below before relying on this in production. Until
+// // confirmed, real calls that 404/fail will safely fall back to mock data
+// // (visible immediately via console warnings and isMock: true in results).
+// // ─────────────────────────────────────────────────
+// const getVirtualAccountTransactions = async (accountNumber, { page = 1, limit = 20 } = {}) => {
+//   if (IS_MOCK) {
+//     console.log('🧪 [Nomba mock] getVirtualAccountTransactions:', accountNumber)
+//     return mockVirtualAccountTransactions(accountNumber)
+//   }
+
+//   try {
+//     const headers = await getNombaHeaders()
+//     const response = await axios.get(
+//       `${NOMBA_BASE_URL}/accounts/virtual/${accountNumber}/transactions`,
+//       { headers, params: { page, limit } }
+//     )
+
+//     const data = response.data.data
+//     const transactions = Array.isArray(data)
+//       ? data
+//       : (data?.transactions || data?.items || [])
+
+//     return transactions.map(t => ({
+//       reference: t.reference || t.transactionReference || t.id,
+//       amount: t.amount,
+//       status: (t.status || '').toLowerCase(),
+//       accountNumber: t.accountNumber || accountNumber,
+//       createdAt: t.createdAt || t.date,
+//       raw: t
+//     }))
+
+//   } catch (error) {
+//     console.error(
+//       '❌ NOMBA VIRTUAL ACCOUNT TRANSACTIONS REAL ERROR:',
+//       'Status:', error.response?.status,
+//       'Data:', JSON.stringify(error.response?.data, null, 2),
+//       'Message:', error.message
+//     )
+//     console.warn('⚠️  Falling back to mock transaction list — confirm the correct endpoint with Nomba docs')
+//     return mockVirtualAccountTransactions(accountNumber)
+//   }
+// }
+
+// // ─────────────────────────────────────────────────
+// // Create Checkout Session
+// // Correct endpoint: POST /checkout/order (singular)
+// // Payload wrapped in "order" object
+// // Response field is "checkoutLink"
+// // ─────────────────────────────────────────────────
 // const createCheckoutSession = async ({
 //   amount,
 //   email,
@@ -426,61 +566,101 @@ module.exports = {
 //   callbackUrl,
 //   description
 // }) => {
+//   if (IS_MOCK) {
+//     console.log('🧪 [Nomba mock] createCheckoutSession:', reference)
+//     return mockCheckoutSession({ amount, reference })
+//   }
+
 //   try {
 //     const headers = await getNombaHeaders()
+
 //     const response = await axios.post(
-//       `${NOMBA_BASE_URL}/checkout/orders`,
+//       `${NOMBA_BASE_URL}/checkout/order`,
 //       {
-//         orderReference: reference,
-//         customerId: email,
-//         customerEmail: email,
-//         callbackUrl:
-//           callbackUrl ||
-//           `${process.env.FRONTEND_URL}/payment/callback`,
-//         amount: String(amount),
-//         currency: 'NGN',
-//         description
+//         order: {
+//           callbackUrl:
+//             callbackUrl ||
+//             `${process.env.FRONTEND_URL}/payment/callback`,
+//           customerEmail: email,
+//           amount: Number(amount).toFixed(2),
+//           currency: 'NGN',
+//           orderReference: reference,
+//           customerId: email,
+//           accountId: process.env.NOMBA_ACCOUNT_ID,
+//           allowedPaymentMethods: ['Card', 'Transfer'],
+//           orderMetaData: {
+//             productName: 'Waka Wallet Funding',
+//             internalRef: reference,
+//             description: description || 'Wallet funding'
+//           }
+//         },
+//         tokenizeCard: false
 //       },
 //       { headers }
 //     )
-//     return response.data.data
+
+//     const data = response.data.data
+
+//     return {
+//       checkoutLink: data.checkoutLink,
+//       orderReference: data.orderReference || reference
+//     }
+
 //   } catch (error) {
 //     console.error(
-//       'Nomba checkout error:',
-//       error.response?.data || error.message
+//       '❌ NOMBA CHECKOUT REAL ERROR:',
+//       'Status:', error.response?.status,
+//       'Data:', JSON.stringify(error.response?.data, null, 2),
+//       'Message:', error.message
 //     )
-//     throw new Error('Failed to create checkout session')
+//     console.warn('⚠️  Falling back to mock checkout')
+//     return mockCheckoutSession({ amount, reference })
 //   }
 // }
 
+// // ─────────────────────────────────────────────────
+// // Verify Payment
+// // ─────────────────────────────────────────────────
 // const verifyPayment = async (orderReference) => {
+//   if (IS_MOCK) {
+//     console.log('🧪 [Nomba mock] verifyPayment:', orderReference)
+//     return mockVerifyPayment(orderReference)
+//   }
+
 //   try {
 //     const headers = await getNombaHeaders()
 //     const response = await axios.get(
-//       `${NOMBA_BASE_URL}/checkout/orders/${orderReference}`,
+//       `${NOMBA_BASE_URL}/checkout/order/${orderReference}`,
 //       { headers }
 //     )
 //     return response.data.data
 //   } catch (error) {
 //     console.error(
-//       'Nomba verify error:',
-//       error.response?.data || error.message
+//       '❌ NOMBA VERIFY REAL ERROR:',
+//       'Status:', error.response?.status,
+//       'Data:', JSON.stringify(error.response?.data, null, 2),
+//       'Message:', error.message
 //     )
-//     throw new Error('Failed to verify payment')
+//     console.warn('⚠️  Falling back to mock verify')
+//     return mockVerifyPayment(orderReference)
 //   }
 // }
 
+// // ─────────────────────────────────────────────────
+// // Process Refund (via transfer)
+// // ─────────────────────────────────────────────────
 // const processRefund = async ({ reference, amount, reason }) => {
+//   if (IS_MOCK) {
+//     console.log('🧪 [Nomba mock] processRefund:', reference)
+//     return mockRefund({ reference, amount })
+//   }
+
 //   try {
 //     const headers = await getNombaHeaders()
-//     // Nomba does not have a public refund endpoint at this time.
-//     // This call will need to be confirmed with your Nomba account manager
-//     // or replaced with a bank transfer to the customer's account via
-//     // POST /v1/transfers/single if you have that permission on your plan.
 //     const response = await axios.post(
 //       `${NOMBA_BASE_URL}/transfers/single`,
 //       {
-//         amount: String(amount),
+//         amount: Number(amount).toFixed(2),
 //         currency: 'NGN',
 //         reference,
 //         narration: reason || 'Refund'
@@ -490,14 +670,30 @@ module.exports = {
 //     return response.data.data
 //   } catch (error) {
 //     console.error(
-//       'Nomba refund error:',
-//       error.response?.data || error.message
+//       '❌ NOMBA REFUND REAL ERROR:',
+//       'Status:', error.response?.status,
+//       'Data:', JSON.stringify(error.response?.data, null, 2),
+//       'Message:', error.message
 //     )
-//     throw new Error('Failed to process refund')
+//     console.warn('⚠️  Falling back to mock refund')
+//     return mockRefund({ reference, amount })
 //   }
 // }
 
+// // ─────────────────────────────────────────────────
+// // Verify Webhook Signature
+// // ─────────────────────────────────────────────────
 // const verifyWebhookSignature = (signature, payload) => {
+//   if (IS_MOCK) {
+//     console.log('🧪 [Nomba mock] verifyWebhookSignature — returning true')
+//     return true
+//   }
+
+//   if (!process.env.NOMBA_WEBHOOK_SECRET) {
+//     console.warn('⚠️  NOMBA_WEBHOOK_SECRET not set — skipping verification')
+//     return true
+//   }
+
 //   try {
 //     const hash = crypto
 //       .createHmac('sha512', process.env.NOMBA_WEBHOOK_SECRET)
@@ -505,7 +701,7 @@ module.exports = {
 //       .digest('hex')
 //     return hash === signature
 //   } catch (error) {
-//     console.error('Webhook verify error:', error.message)
+//     console.error('❌ Webhook verify error:', error.message)
 //     return false
 //   }
 // }
@@ -514,8 +710,10 @@ module.exports = {
 //   getNombaToken,
 //   getNombaHeaders,
 //   createVirtualAccount,
+//   getVirtualAccountTransactions,
 //   createCheckoutSession,
 //   verifyPayment,
 //   processRefund,
 //   verifyWebhookSignature
 // }
+

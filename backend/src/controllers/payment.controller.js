@@ -12,7 +12,7 @@ const {
   verifyPayment,
   verifyWebhookSignature,
   createVirtualAccount,
-  getVirtualAccountTransactions
+  verifyTransactionByReference
 } = require('../services/nomba.service')
 
 const {
@@ -40,19 +40,19 @@ const { cache } = require('../services/cache.service')
 
 // ─────────────────────────────────────────────────
 // SHARED HELPER — credit wallet for a virtual account transfer
-// Used by BOTH the webhook handler and the polling fallback below,
-// so the two paths can never drift out of sync or double-credit.
+// Used by BOTH the webhook handler and the reference-verify fallback
+// below, so the two paths can never drift out of sync or double-credit.
 // ─────────────────────────────────────────────────
 const creditWalletFromTransfer = async ({
   user,
   amount,
   reference,
   accountNumber,
-  source,   // 'webhook' or 'poll'
+  source,   // 'webhook' or 'manual_verify'
   rawData
 }) => {
   // Idempotency guard — if this reference was already processed
-  // (by webhook OR a previous poll), skip silently.
+  // (by webhook OR a previous manual verify), skip silently.
   const existing = await Transaction.findOne({
     reference,
     status: 'success'
@@ -264,19 +264,25 @@ const getVirtualAccount = async (req, res) => {
 }
 
 // ─────────────────────────────────────────────────
-// VERIFY VIRTUAL ACCOUNT FUNDING — polling fallback
-// GET /api/v1/payments/verify-transfer
+// VERIFY VIRTUAL ACCOUNT TRANSFER — webhook fallback
+// GET /api/v1/payments/verify-transfer/:reference
 //
-// Use this while no public webhook URL is configured.
-// Calls Nomba directly to check for new incoming credits
-// to the student's virtual account, and credits the wallet
-// for any that haven't been recorded yet.
-//
-// Frontend should call this after the student says
-// "I've made the transfer" — e.g. a manual "I've paid" button
-// on the virtual-account funding screen, or on a short poll loop.
+// Use this while no public webhook URL is configured, or as a manual
+// "I've paid" confirmation. The student provides the exact transaction
+// reference from their bank transfer receipt/app, and we ask Nomba
+// directly whether that specific transaction succeeded — the same
+// reliable pattern as verifyCheckoutPayment, just for transfers.
 // ─────────────────────────────────────────────────
 const verifyVirtualAccountFunding = async (req, res) => {
+  const { reference } = req.params
+
+  if (!reference) {
+    return res.status(400).json({
+      success: false,
+      message: 'Please provide the transaction reference from your transfer receipt'
+    })
+  }
+
   const user = await User.findById(req.user._id)
 
   if (!user) {
@@ -293,88 +299,99 @@ const verifyVirtualAccountFunding = async (req, res) => {
     })
   }
 
-  let transactions
-  try {
-    transactions = await getVirtualAccountTransactions(user.virtualAccountNumber, {
-      page: 1,
-      limit: 20
+  // Already processed? Short-circuit before calling Nomba again.
+  const existing = await Transaction.findOne({ reference, status: 'success' })
+  if (existing) {
+    return res.status(200).json({
+      success: true,
+      credited: false,
+      message: 'This transfer was already confirmed and credited.',
+      walletBalance: user.walletBalance
     })
+  }
+
+  let txn
+  try {
+    txn = await verifyTransactionByReference(reference, user.virtualAccountNumber)
   } catch (error) {
     await createAuditLog({
       userId: user._id,
       role: user.role,
       action: 'PAYMENT_FAILED',
-      metadata: { step: 'verify_transfer_fetch', accountNumber: user.virtualAccountNumber },
+      metadata: { step: 'verify_transfer_fetch', reference, accountNumber: user.virtualAccountNumber },
       status: 'failed',
       errorMessage: error.message
     })
 
     return res.status(502).json({
       success: false,
-      message: 'Could not reach Nomba to verify transfer. Please try again shortly.'
+      message: 'Could not reach Nomba to verify this transfer. Please try again shortly.'
     })
   }
 
-  // Only consider successful/completed credits
-  const successfulTxns = transactions.filter(t =>
-    ['success', 'successful', 'completed'].includes(t.status)
-  )
+  const isSuccessful = ['success', 'successful', 'completed'].includes(txn.status)
 
-  if (successfulTxns.length === 0) {
+  if (!isSuccessful) {
     return res.status(200).json({
       success: true,
       credited: false,
-      message: 'No new transfer found yet. If you just paid, wait a few seconds and try again.',
+      message: `Transfer status: ${txn.status || 'unknown'}. If you just paid, wait a few seconds and try again.`,
       walletBalance: user.walletBalance
     })
   }
 
-  const results = []
-  for (const txn of successfulTxns) {
-    try {
-      const result = await creditWalletFromTransfer({
-        user,
-        amount: txn.amount,
-        reference: txn.reference,
-        accountNumber: user.virtualAccountNumber,
-        source: 'poll',
-        rawData: txn.raw
-      })
-      results.push({ reference: txn.reference, ...result })
-    } catch (error) {
-      results.push({
-        reference: txn.reference,
-        credited: false,
-        reason: 'error',
-        error: error.message
-      })
-    }
+  // Security check — this transaction must actually belong to the
+  // student's own virtual account, so one student can't credit their
+  // wallet using someone else's transfer reference.
+  if (txn.accountNumber && txn.accountNumber !== user.virtualAccountNumber) {
+    await createAuditLog({
+      userId: user._id,
+      role: user.role,
+      action: 'PAYMENT_FAILED',
+      metadata: {
+        step: 'verify_transfer_account_mismatch',
+        reference,
+        expectedAccount: user.virtualAccountNumber,
+        actualAccount: txn.accountNumber
+      },
+      status: 'failed',
+      errorMessage: 'Transaction account number does not match student virtual account'
+    })
+
+    return res.status(403).json({
+      success: false,
+      message: 'This transaction does not belong to your virtual account.'
+    })
   }
 
-  const newlyCredited = results.filter(r => r.credited)
+  const amount = Number(txn.amount)
 
-  // Re-fetch user to get the true final balance after all credits applied
+  const result = await creditWalletFromTransfer({
+    user,
+    amount,
+    reference,
+    accountNumber: user.virtualAccountNumber,
+    source: 'manual_verify',
+    rawData: txn.raw
+  })
+
   const refreshedUser = await User.findById(req.user._id)
 
-  if (newlyCredited.length === 0) {
+  if (!result.credited) {
     return res.status(200).json({
       success: true,
       credited: false,
-      message: 'Transfer(s) found but already credited previously.',
+      message: 'Transfer found but already credited previously.',
       walletBalance: refreshedUser.walletBalance
     })
   }
 
-  const totalCredited = newlyCredited.reduce((sum, r) => sum + r.amount, 0)
-
   res.status(200).json({
     success: true,
     credited: true,
-    message: `₦${totalCredited.toLocaleString()} confirmed and added to your wallet.`,
-    creditedTransactions: newlyCredited.map(r => ({
-      reference: r.reference,
-      amount: r.amount
-    })),
+    message: `₦${amount.toLocaleString()} confirmed and added to your wallet.`,
+    reference,
+    amount,
     walletBalance: refreshedUser.walletBalance
   })
 }
@@ -680,8 +697,8 @@ const pollPaymentStatus = async (req, res) => {
 //
 // Kept fully working — once a public webhook URL exists, this fires
 // instantly and creditWalletFromTransfer's idempotency guard means
-// there's no risk of double-crediting if the poll endpoint above
-// already caught the same transfer first.
+// there's no risk of double-crediting if a manual verify already
+// caught the same transfer first.
 // ─────────────────────────────────────────────────
 const handleWebhook = async (req, res) => {
   const signature =
