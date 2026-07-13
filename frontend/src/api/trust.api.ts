@@ -9,4 +9,7 @@ export const trustApi = {
 
   getRNPLStudents: () =>
     api.get('/trust/rnpl-students'),
+  
+  getLeaderboard:(campus?: string) =>
+    api.get(`/trust/leaderboard${campus ? `?campus=${campus}` : ''}`),
 }

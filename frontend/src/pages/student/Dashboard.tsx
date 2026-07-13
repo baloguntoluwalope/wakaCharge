@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useQueries } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
@@ -5,53 +6,71 @@ import { useAuth } from '../../context/AuthContext'
 import { paymentsApi } from '../../api/payments.api'
 import { rentalsApi } from '../../api/rentals.api'
 import { notificationsApi } from '../../api/notifications.api'
-import { WalletCard } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { EmptyWallet } from '../../components/student/EmptyWallet'
 import { useCountdown } from '../../hooks/useCountdown'
-import { greeting, deviceEmoji, deviceLabel, formatCurrency } from '../../utils'
+import { greeting, deviceLabel, formatCurrency } from '../../utils'
 import { DEVICE_CONFIG, TRUST_LEVELS } from '../../theme/tokens'
 import type { Rental } from '../../types'
-import {
-  MdNotifications,
-  MdQrCodeScanner,
-  MdBatteryChargingFull,
-  MdHistory,
-  MdLocationOn,
-  MdArrowForward,
-  MdBolt,
+
+// ─── Stable React Icons Imports ─────────────────────────────
+import { 
+  RiNotification3Line, 
+  RiQrCodeLine, 
+  RiHistoryLine, 
+  RiMapPinRangeLine, 
+  RiArrowRightLine, 
+  RiCheckboxCircleFill,
+  RiEyeLine,
+  RiEyeOffLine,
+  RiBattery2ChargeLine,
+  RiArrowRightSLine,
+  RiLightbulbLine,    // Added: Lamp representation
+  RiSuitcaseLine      // Added: Survival Kit / Bag representation
+} from 'react-icons/ri'
+import { 
+  MdOutlineWarningAmber, 
+  MdOutlineAccountBalanceWallet,
   MdTrendingUp,
-  MdKeyboardReturn,
-  MdTimer,
-  MdWarning,
+  MdEventSeat        // Added: Comfort / Cushion representation
 } from 'react-icons/md'
 
-// ─── Shimmer skeleton ─────────────────────────────────────
+// ─── Pro Fintech Curved Shimmer Skeleton ───────────────────
 const Shimmer = ({ className = '' }: { className?: string }) => (
-  <div
-    className={`relative overflow-hidden rounded-3xl ${className}`}
-    style={{ background: '#f1f5f9' }}
-  >
-    <div
-      className="absolute inset-0"
-      style={{
-        background:
-          'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.7) 50%, transparent 100%)',
-        backgroundSize: '200% 100%',
-        animation: 'shimmer 1.4s ease-in-out infinite',
-      }}
+  <div className={`relative overflow-hidden bg-slate-100 rounded-[2rem] ${className}`}>
+    <motion.div
+      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent"
+      initial={{ x: '-100%' }}
+      animate={{ x: '100%' }}
+      transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
     />
   </div>
 )
 
-// ─── Main Dashboard ───────────────────────────────────────
+// Helper mapping for hardware tariff icons based on your custom requirements
+const getDeviceIcon = (type: string) => {
+  switch (type?.toLowerCase()) {
+    case 'lamp': 
+      return RiLightbulbLine
+    case 'survivalkit': 
+    case 'bag':
+      return RiSuitcaseLine
+    case 'comfort': 
+    case 'cushion':
+      return MdEventSeat
+    default: 
+      return RiBattery2ChargeLine
+  }
+}
+
 export default function Dashboard() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const justRegistered = (location.state as any)?.justRegistered
+  
+  const [showBalance, setShowBalance] = useState<boolean>(true)
 
-  // Parallel data fetching architecture
   const [walletQuery, rentalsQuery, notifQuery] = useQueries({
     queries: [
       {
@@ -84,282 +103,287 @@ export default function Dashboard() {
   const progress = Math.min(100, (score / (nextThreshold || 31)) * 100)
 
   return (
-    <div className="bg-slate-50 min-h-svh">
-      {/* ── Header ──────────────────────────────── */}
-      <div className="bg-white px-5 pt-14 pb-5 border-b border-slate-100">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-400 mb-0.5">
-              Good {greeting()},
-            </p>
-            <h1 className="text-2xl font-black text-navy-900 leading-tight">
-              {user?.name?.split(' ')[0] || 'Student'} 👋
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate('/notifications')}
-              className="relative w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors"
-            >
-              <MdNotifications size={20} className="text-navy-700" />
-              {unread > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center">
-                  {unread > 9 ? '9+' : unread}
-                </span>
-              )}
-            </button>
-            <button
+    <div className="bg-slate-50 min-h-svh antialiased text-slate-900 pb-16 selection:bg-green-100">
+      
+      {/* ── Curved Dynamic Top Nav Bar ────────────────────────── */}
+      <div className="bg-white/90 backdrop-blur-md px-5 pt-12 pb-5 border-b border-slate-100 sticky top-0 z-40 rounded-b-[2rem] shadow-sm shadow-slate-100/40">
+        <div className="max-w-md mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <motion.button
+              whileTap={{ scale: 0.92 }}
               onClick={() => navigate('/profile')}
-              className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-navy-950 font-black text-sm hover:bg-green-400 transition-colors"
+              className="w-11 h-11 rounded-full bg-green-500 flex items-center justify-center text-slate-950 font-black text-sm border-2 border-white shadow-md ring-1 ring-slate-200/50 hover:bg-green-400 transition-colors"
             >
               {user?.name?.charAt(0) || 'W'}
-            </button>
+            </motion.button>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 leading-none">
+                {greeting()}
+              </p>
+              <h1 className="text-base font-black text-slate-900 tracking-tight mt-1 flex items-center gap-1">
+                {user?.name || 'Waka User'}
+                <RiCheckboxCircleFill size={15} className="text-green-600" />
+              </h1>
+            </div>
           </div>
+          
+          <motion.button
+            whileTap={{ scale: 0.92 }}
+            onClick={() => navigate('/notifications')}
+            className="relative w-10 h-10 rounded-full bg-slate-50 border border-slate-200/60 flex items-center justify-center hover:bg-slate-100 text-slate-700 transition-all shadow-inner"
+          >
+            <RiNotification3Line size={18} />
+            {unread > 0 && (
+              <span className="absolute top-0 right-0 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center border-2 border-white animate-pulse">
+                {unread > 9 ? '9' : unread}
+              </span>
+            )}
+          </motion.button>
         </div>
       </div>
 
-      <div className="px-5 pt-5 pb-6 flex flex-col gap-5">
-        {/* ── Welcome banner ──────────────────────── */}
+      <div className="max-w-md mx-auto px-4 py-5 flex flex-col gap-4">
+        
+        {/* ── Fluid Notification Banner ──────────────────────── */}
         {justRegistered && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.97 }}
+            initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="rounded-3xl p-5"
-            style={{ background: 'linear-gradient(135deg, #1db954, #16a34a)' }}
+            className="rounded-[2rem] p-5 bg-gradient-to-br from-green-600 to-green-700 shadow-lg shadow-green-600/10 relative overflow-hidden"
           >
-            <p className="text-white font-black text-lg mb-1">
-              Welcome to Waka! ⚡
-            </p>
-            <p className="text-white/70 text-sm mb-4">
-              Your Nomba virtual account is ready. Fund your wallet to rent your first device.
-            </p>
-            <button
-              onClick={() => navigate('/wallet/fund')}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/20 text-white text-sm font-bold hover:bg-white/30 transition-colors"
-            >
-              Fund wallet now
-              <MdArrowForward size={14} />
-            </button>
+            <div className="absolute right-[-10%] top-[-20%] w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+            <div className="relative z-10">
+              <p className="text-white font-black text-sm">Account Activation Successful ⚡</p>
+              <p className="text-white/80 text-xs mt-1 font-medium leading-relaxed">
+                Your Nomba virtual clearing account is live. Securely fund your personal wallet ledger below.
+              </p>
+              <motion.button
+                whileTap={{ scale: 0.96 }}
+                onClick={() => navigate('/wallet/fund')}
+                className="flex items-center gap-1 px-4 py-2 mt-3 rounded-xl bg-white text-green-700 text-xs font-bold hover:bg-slate-50 transition-colors shadow-md"
+              >
+                Deposit Funds
+                <RiArrowRightLine size={14} />
+              </motion.button>
+            </div>
           </motion.div>
         )}
 
-        {/* ── Wallet card ──────────────────────────── */}
-        {walletQuery.isPending ? (
-          <Shimmer className="h-52" />
-        ) : balance === 0 ? (
-          <EmptyWallet
-            virtualAccountNumber={wallet?.virtualAccount?.accountNumber}
-            virtualAccountBank={wallet?.virtualAccount?.bankName}
-            userName={user?.name}
-          />
-        ) : (
-          <WalletCard
-            balance={balance}
-            accountNumber={wallet?.virtualAccount?.accountNumber}
-            bankName={wallet?.virtualAccount?.bankName}
-            accountName={wallet?.virtualAccount?.accountName}
-            loading={walletQuery.isPending}
-            onFund={() => navigate('/wallet/fund')}
-            onView={() => navigate('/transactions')}
-          />
-        )}
+        {/* ── Premium Curved Wallet Deck ── */}
+        <div className="bg-white rounded-[2rem] border border-slate-200/80 shadow-md shadow-slate-100 p-5 relative overflow-hidden ring-1 ring-black/[0.02]">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5 text-slate-500">
+              <div className="w-6 h-6 rounded-lg bg-green-50 flex items-center justify-center">
+                <MdOutlineAccountBalanceWallet size={15} className="text-green-600" />
+              </div>
+              <span className="text-xs font-bold tracking-tight text-slate-400">Available Balance</span>
+              <button 
+                onClick={() => setShowBalance(!showBalance)}
+                className="p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                {showBalance ? <RiEyeOffLine size={15} /> : <RiEyeLine size={15} />}
+              </button>
+            </div>
+            <span className="text-[9px] font-black tracking-wider uppercase text-slate-400 bg-slate-50 px-2.5 py-1 rounded-full border border-slate-100">
+              Tier 1 Student
+            </span>
+          </div>
+          
+          {walletQuery.isPending ? (
+            <Shimmer className="h-28" />
+          ) : balance === 0 ? (
+            <EmptyWallet
+              virtualAccountNumber={wallet?.virtualAccount?.accountNumber}
+              virtualAccountBank={wallet?.virtualAccount?.bankName}
+              userName={user?.name}
+            />
+          ) : (
+            <div>
+              <div className="mb-5 pl-1">
+                <span className="text-3xl font-black tracking-tight text-slate-900">
+                  {showBalance ? formatCurrency(balance) : "••••••"}
+                </span>
+              </div>
+              <div className="flex gap-2.5">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => navigate('/wallet/fund')}
+                  className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-black text-xs transition-colors shadow-md shadow-green-600/10 text-center"
+                >
+                  Add Money
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => navigate('/transactions')}
+                  className="flex-1 py-3 rounded-xl bg-slate-50 border border-slate-200/80 hover:bg-slate-100 text-slate-700 font-bold text-xs transition-all text-center"
+                >
+                  History 
+                </motion.button>
+              </div>
+            </div>
+          )}
+        </div>
 
-        {/* ── Active rentals ────────────────────────── */}
+        {/* ── Active Rentals Queue ────────────────── */}
         {rentalsQuery.isPending ? (
           <Shimmer className="h-32" />
         ) : activeRentals.length > 0 ? (
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                Active rentals
-              </p>
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center justify-between px-1.5">
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+                Active Operations ({activeRentals.length})
+              </h2>
               <button
                 onClick={() => navigate('/rentals')}
-                className="flex items-center gap-1 text-xs font-semibold text-green-600"
+                className="flex items-center text-xs font-bold text-green-600 hover:text-green-700"
               >
-                View all
-                <MdArrowForward size={12} />
+                See All
+                <RiArrowRightSLine size={16} />
               </button>
             </div>
             {activeRentals.map(rental => (
               <ActiveRentalCard
                 key={rental._id}
                 rental={rental}
-                // Updated: Points to unified URL parameters on the main layout view
                 onManage={() => navigate(`/rentals?id=${rental._id}`)}
               />
             ))}
           </div>
         ) : null}
 
-        {/* ── Quick actions ─────────────────────────── */}
-        <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
-            Quick actions
-          </p>
-          <div className="grid grid-cols-4 gap-2.5">
+        {/* ── OPay Rounded Service Matrix ─────────────────── */}
+        <div className="bg-white rounded-[2rem] border border-slate-200/80 shadow-md shadow-slate-100/60 p-5">
+          <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-4 pl-0.5">
+            Quick Services
+          </h2>
+          <div className="grid grid-cols-4 gap-2">
             {[
-              {
-                icon: <MdLocationOn size={22} className="text-green-600" />,
-                label: 'Stations',
-                path: '/stations',
-                bg: '#f0fdf4',
-              },
-              {
-                icon: <MdQrCodeScanner size={22} className="text-blue-600" />,
-                label: 'Scan QR',
-                path: '/scan',
-                bg: '#eff6ff',
-              },
-              {
-                icon: <MdBatteryChargingFull size={22} className="text-purple-600" />,
-                label: 'Rentals',
-                path: '/rentals',
-                bg: '#faf5ff',
-              },
-              {
-                icon: <MdHistory size={22} className="text-amber-600" />,
-                label: 'History',
-                path: '/transactions',
-                bg: '#fffbeb',
-              },
-            ].map(a => (
-              <motion.button
-                key={a.path}
-                whileTap={{ scale: 0.92 }}
-                onClick={() => navigate(a.path)}
-                className="flex flex-col items-center gap-2 py-3.5 rounded-2xl border border-slate-100"
-                style={{ background: a.bg }}
-              >
-                {a.icon}
-                <span className="text-[10px] font-bold text-slate-600">
-                  {a.label}
-                </span>
-              </motion.button>
-            ))}
+              { icon: RiMapPinRangeLine, label: 'Stations', path: '/stations', color: 'text-green-600', bg: 'bg-green-50' },
+              { icon: RiQrCodeLine, label: 'Scan QR', path: '/scan', color: 'text-blue-600', bg: 'bg-blue-50' },
+              { icon: RiBattery2ChargeLine, label: 'Rentals', path: '/rentals', color: 'text-purple-600', bg: 'bg-purple-50' },
+              { icon: RiHistoryLine, label: 'History', path: '/transactions', color: 'text-amber-600', bg: 'bg-amber-50' },
+            ].map((a, idx) => {
+              const ActionIcon = a.icon
+              return (
+                <button
+                  key={idx}
+                  onClick={() => navigate(a.path)}
+                  className="flex flex-col items-center gap-2 py-1 group"
+                >
+                  <div className={`w-13 h-13 rounded-2xl ${a.bg} ${a.color} flex items-center justify-center shadow-sm transition-all group-active:scale-90 group-hover:shadow-md group-hover:-translate-y-0.5`}>
+                    <ActionIcon size={22} />
+                  </div>
+                  <span className="text-xs font-bold text-slate-600 tracking-tight text-center">
+                    {a.label}
+                  </span>
+                </button>
+              )
+            })}
           </div>
         </div>
 
-        {/* ── Trust score card ──────────────────────── */}
-        <motion.button
-          whileTap={{ scale: 0.99 }}
+        {/* ── Trust Credit Hub ──────────────────── */}
+        <div
           onClick={() => navigate('/trust')}
-          className="bg-white rounded-3xl border border-slate-100 p-5 text-left w-full"
+          className="bg-white rounded-[2rem] border border-slate-200/80 p-5 shadow-md shadow-slate-100/60 hover:border-slate-300 cursor-pointer transition-all flex items-center justify-between group"
         >
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center">
-                <MdTrendingUp size={20} className="text-amber-500" />
-              </div>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-0.5">
-                  Trust Score
-                </p>
-                <div className="flex items-center gap-2">
-                  <span className="text-xl font-black text-navy-900">{score}</span>
-                  <span className="text-sm font-bold" style={{ color: trustConfig?.color }}>
-                    {trustConfig?.emoji} {trustConfig?.label}
-                  </span>
-                </div>
-              </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="p-1 rounded-lg bg-amber-50 border border-amber-100 text-amber-500 flex items-center justify-center">
+                <MdTrendingUp size={16} />
+              </span>
+              <p className="text-xs font-bold tracking-tight text-slate-400">Waka Trust Overdraft Profile</p>
             </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black text-slate-900 tracking-tight">{score}</span>
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-50 border border-slate-200/60" style={{ color: trustConfig?.color }}>
+                {trustConfig?.label || 'Verified Tier'}
+              </span>
+            </div>
+            
+            <div className="h-2 bg-slate-100 rounded-full overflow-hidden mt-3 max-w-[85%] border border-slate-200/10 shadow-inner">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+                transition={{ duration: 0.6, ease: 'easeOut' }}
+                className="h-full rounded-full"
+                style={{ background: 'linear-gradient(90deg, #1db954, #34d572)' }}
+              />
+            </div>
+          </div>
+          
+          <div className="text-right flex flex-col items-end gap-2">
             {user?.rnplEnabled ? (
               <Badge variant="amber" dot size="sm">RNPL Active</Badge>
             ) : (
-              <p className="text-xs text-slate-400">
-                {Math.max(0, 10 - score)} to RNPL
-              </p>
+              <span className="text-[10px] font-black tracking-wide text-green-600 bg-green-50 border border-green-100 px-2.5 py-1 rounded-full">
+                +{Math.max(0, 10 - score)} Overdraft
+              </span>
             )}
-          </div>
-          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.8, ease: 'easeOut' }}
-              className="h-full rounded-full"
-              style={{ background: 'linear-gradient(90deg, #1db954, #34d572)' }}
-            />
-          </div>
-          {score < 31 && (
-            <p className="text-xs text-slate-400 mt-2">
-              {Math.max(0, (nextThreshold || 31) - score)} more returns to{' '}
-              {score >= 18 ? 'Gold tier' : score >= 10 ? 'Silver tier' : 'unlock RNPL'}
-            </p>
-          )}
-        </motion.button>
-
-        {/* ── Devices grid ──────────────────────────── */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-              Available devices
-            </p>
-            <button
-              onClick={() => navigate('/stations')}
-              className="flex items-center gap-1 text-xs font-semibold text-green-600"
-            >
-              Find station
-              <MdArrowForward size={12} />
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {Object.entries(DEVICE_CONFIG).map(([type, config]) => (
-              <motion.button
-                key={type}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => navigate('/stations')}
-                className="bg-white rounded-3xl border border-slate-100 p-4 text-left relative overflow-hidden"
-              >
-                <div
-                  className="absolute top-0 right-0 w-16 h-16 rounded-full opacity-[0.08]"
-                  style={{
-                    background: config.color,
-                    transform: 'translate(30%, -30%)',
-                  }}
-                />
-                <span className="text-3xl block mb-2">{config.emoji}</span>
-                <p className="font-bold text-navy-900 text-sm">{config.label}</p>
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-base font-black" style={{ color: config.color }}>
-                    ₦{config.price}
-                  </span>
-                  <Badge variant="slate" size="xs">
-                    +₦{config.deposit} dep
-                  </Badge>
-                </div>
-              </motion.button>
-            ))}
+            <RiArrowRightSLine size={18} className="text-slate-400 mt-0.5 transition-transform group-hover:translate-x-0.5" />
           </div>
         </div>
 
-        {/* ── Roadmap teaser ────────────────────────── */}
-        <motion.button
-          whileTap={{ scale: 0.98 }}
+        {/* ── Curved Terminal Grid ─────────────────── */}
+        <div>
+          <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-3 px-1.5">
+            Hardware Tariffs
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            {Object.entries(DEVICE_CONFIG).map(([type, config]) => {
+              const DeviceUtilityIcon = getDeviceIcon(type)
+              return (
+                <div
+                  key={type}
+                  onClick={() => navigate('/stations')}
+                  className="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-sm relative overflow-hidden cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group"
+                >
+                  <div
+                    className="absolute top-0 right-0 w-16 h-16 rounded-full opacity-[0.05] transition-transform duration-500 group-hover:scale-125"
+                    style={{ background: config.color, transform: 'translate(15%, -15%)' }}
+                  />
+                  <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-600 mb-3 group-hover:-translate-y-0.5 transition-transform">
+                    <DeviceUtilityIcon size={18} style={{ color: config.color }} />
+                  </div>
+                  <p className="font-black text-slate-800 text-xs tracking-tight">{config.label}</p>
+                  <div className="flex items-baseline justify-between mt-1">
+                    <span className="text-base font-black" style={{ color: config.color }}>
+                      ₦{config.price}
+                    </span>
+                    <span className="text-[9px] font-bold text-slate-400">
+                      +₦{config.deposit} dep
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+      
+        <div
           onClick={() => navigate('/roadmap')}
-          className="rounded-3xl p-5 text-left w-full"
-          style={{ background: 'linear-gradient(135deg, #0b1420, #1a2f45)' }}
+          className="rounded-[2rem] p-5 cursor-pointer bg-slate-900 relative overflow-hidden shadow-lg hover:shadow-xl transition-all group"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between relative z-10">
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-green-400 mb-1">
-                Coming next
-              </p>
-              <p className="text-white font-bold text-sm">
-                Waka Wallet · Market · Transport
-              </p>
-              <p className="text-white/40 text-xs mt-1">
-                See the full product roadmap →
+              <span className="text-[9px] font-black uppercase tracking-widest text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full border border-green-500/20">
+                Roadmap
+              </span>
+              <p className="text-white font-black text-sm tracking-tight mt-2.5">
+                Savings · Marketplace · Transport
               </p>
             </div>
-            <MdBolt size={28} className="text-green-400/40" />
+            <RiArrowRightSLine size={20} className="text-white/40 transition-transform group-hover:translate-x-0.5" />
           </div>
-        </motion.button>
+          <div className="absolute right-[-5%] bottom-[-10%] w-24 h-24 bg-gradient-to-tr from-green-500/20 to-transparent rounded-full blur-xl pointer-events-none" />
+        </div>
       </div>
     </div>
   )
 }
 
-// ─── Active Rental Card Layout ──────────────────────────────
+// ─── Styled Active Rental Component Module ───────────────────
 const ActiveRentalCard = ({
   rental,
   onManage,
@@ -377,94 +401,79 @@ const ActiveRentalCard = ({
       })()
 
   const colors = {
-    overdue: { border: 'border-red-300', bg: 'bg-red-50', bar: 'bg-red-500', btn: 'bg-red-500 hover:bg-red-600 text-white' },
-    urgent:  { border: 'border-amber-300', bg: 'bg-amber-50', bar: 'bg-amber-500', btn: 'bg-amber-500 hover:bg-amber-400 text-white' },
-    normal:  { border: 'border-green-200', bg: 'bg-green-50', bar: 'bg-green-500', btn: 'bg-green-500 hover:bg-green-400 text-white' },
+    overdue: { border: 'border-red-200', bar: 'bg-red-500', btn: 'bg-red-500 hover:bg-red-600 text-white', text: 'text-red-500' },
+    urgent:  { border: 'border-amber-200', bar: 'bg-amber-500', btn: 'bg-amber-500 hover:bg-amber-600 text-white', text: 'text-amber-600' },
+    normal:  { border: 'border-green-200', bar: 'bg-green-600', btn: 'bg-green-600 hover:bg-green-700 text-white', text: 'text-green-600' },
   }[urgencyLevel]
 
-  const timeColor = {
-    overdue: 'text-red-500',
-    urgent:  'text-amber-600',
-    normal:  'text-green-600',
-  }[urgencyLevel]
+  const DeviceDynamicIcon = getDeviceIcon(rental.deviceType)
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`rounded-3xl border-2 overflow-hidden ${colors.border} ${colors.bg}`}
-    >
-      {/* Status Bar */}
-      <div className={`${colors.bar} px-4 py-2 flex items-center justify-between`}>
-        <p className="text-white text-xs font-bold uppercase tracking-widest">
-          {urgencyLevel === 'overdue'
-            ? '⚠️ Overdue — return now'
-            : urgencyLevel === 'urgent'
-            ? '⏱ Due soon'
-            : '⚡ Active rental'
-          }
-        </p>
-        <p className="text-white/80 text-xs font-bold">
-          Locker {rental.lockerAssigned || '—'}
-        </p>
+    <div className={`rounded-[2rem] border bg-white shadow-sm overflow-hidden ${colors.border} ring-1 ring-black/[0.01]`}>
+      <div className={`${colors.bar} px-4 py-1.5 flex items-center justify-between`}>
+        <span className="text-white text-[9px] font-black uppercase tracking-wider">
+          {urgencyLevel === 'overdue' ? 'Liability Overdue' : urgencyLevel === 'urgent' ? 'Expiring Soon' : 'Active Operation'}
+        </span>
+        <span className="text-white text-[10px] font-black opacity-90">
+          Locker {rental.lockerAssigned || 'N/A'}
+        </span>
       </div>
 
-      <div className="p-4">
-        <div className="flex items-start gap-3 mb-4">
-          <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-2xl flex-shrink-0 shadow-sm">
-            {deviceEmoji(rental.deviceType)}
+      <div className="p-4 bg-slate-50/20">
+        <div className="flex items-center gap-3.5 mb-4">
+          <div className="w-11 h-11 rounded-xl bg-white border border-slate-200/60 flex items-center justify-center text-slate-700 flex-shrink-0 shadow-xs">
+            <DeviceDynamicIcon size={20} />
           </div>
           <div className="flex-1">
-            <p className="font-black text-navy-900 text-base">
+            <h4 className="font-black text-slate-900 text-xs">
               {deviceLabel(rental.deviceType)}
-            </p>
-            <p className={`text-sm font-black mt-0.5 ${timeColor}`}>
+            </h4>
+            <p className={`text-base font-black tracking-tight mt-0.5 ${colors.text}`}>
               {timeLeft}
-            </p>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Deposit {formatCurrency(rental.depositAmount)} · refunded on return
             </p>
           </div>
         </div>
 
-        {/* Confirmation Code */}
-        <div className="bg-white rounded-2xl px-4 py-3 mb-4 border border-slate-200">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-            Return code
-          </p>
-          <p className="font-mono font-black text-2xl tracking-[0.25em] text-amber-500">
-            {rental.confirmationCode}
-          </p>
+        <div className="bg-white rounded-2xl px-4 py-3 mb-4 border border-slate-200/50 flex items-center justify-between shadow-inner">
+          <div>
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">
+              Clearance Token
+            </span>
+            <span className="font-mono font-black text-lg text-slate-800 tracking-wider block mt-0.5">
+              {rental.confirmationCode}
+            </span>
+          </div>
+          <span className="text-[10px] font-bold text-slate-400 bg-slate-50 border border-slate-100 px-2 py-1 rounded-md">
+            Deposit: {formatCurrency(rental.depositAmount)}
+          </span>
         </div>
 
-        {/* Formatted Actions targeting the onManage handler interface */}
-        <div className="flex gap-2.5">
+        <div className="flex gap-2">
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={onManage}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm transition-all ${colors.btn}`}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl font-black text-xs transition-colors shadow-sm ${colors.btn}`}
           >
-            <MdKeyboardReturn size={18} />
-            Return device
+            Terminate & Return
           </motion.button>
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={onManage}
-            className="px-4 py-3 rounded-2xl bg-white border border-slate-200 text-slate-600 text-sm font-bold hover:bg-slate-50 transition-all flex-shrink-0"
+            className="px-4 py-3 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition-colors shadow-sm"
           >
             Details
           </motion.button>
         </div>
 
         {urgencyLevel === 'overdue' && (
-          <div className="mt-3 bg-red-100 border border-red-200 rounded-2xl px-3 py-2.5 flex items-start gap-2">
-            <MdWarning size={14} className="text-red-500 mt-0.5 flex-shrink-0" />
-            <p className="text-red-600 text-xs leading-relaxed">
-              Late fees are being applied. Return immediately to minimize charges.
+          <div className="mt-3 bg-red-50 border border-red-100/60 rounded-xl p-3 flex items-start gap-2 animate-pulse">
+            <MdOutlineWarningAmber size={16} className="text-red-500 mt-0.5 flex-shrink-0" />
+            <p className="text-red-600 text-[11px] leading-tight font-semibold">
+              Daily compounding penalties active. Terminate session immediately.
             </p>
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   )
 }

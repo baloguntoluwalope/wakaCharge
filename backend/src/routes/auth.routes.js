@@ -12,6 +12,7 @@ const {
   changePassword,
   registerAdmin,
   loginAdmin,
+  registerOperator,
   loginOperator,
   getProfile,
   updateProfile,
@@ -25,7 +26,7 @@ const { protect } = require('../middleware/auth.middleware')
  *   name: Authentication
  *   description: |
  *     OTP-based registration for students. Email + password login for all roles.
- *     Operators are onboarded by admin — they do not self-register.
+ *     Operators self-register but require admin approval before they can log in.
  *
  *     ### Student Registration Flow
  *     1. POST /send-otp — send OTP to email
@@ -36,6 +37,12 @@ const { protect } = require('../middleware/auth.middleware')
  *     1. POST /forgot-password — send reset OTP to email
  *     2. POST /verify-reset-otp — verify OTP
  *     3. POST /reset-password — set new password
+ *
+ *     ### Operator Onboarding Flow
+ *     1. POST /operator/register — operator submits registration (status: pending)
+ *     2. Admin reviews via GET /operators/pending
+ *     3. Admin calls POST /operators/:id/approve or /operators/:id/reject
+ *     4. Approved operators can POST /operator/login
  */
 
 // ─── Student Registration ─────────────────────────────────────────────────────
@@ -371,11 +378,57 @@ router.post('/admin/login', loginAdmin)
 
 /**
  * @swagger
+ * /api/v1/auth/operator/register:
+ *   post:
+ *     summary: Operator self-registration — requires admin approval before login
+ *     tags: [Authentication]
+ *     description: |
+ *       Operators submit their own registration, but the account is created with
+ *       a pending status. Login is blocked until an admin approves the operator
+ *       via POST /api/v1/admin/operators/:id/approve.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, email, phone, password, campus]
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: Bode Fashola
+ *               email:
+ *                 type: string
+ *                 example: operator@wakacharge.com
+ *               phone:
+ *                 type: string
+ *                 example: "08123456789"
+ *               password:
+ *                 type: string
+ *                 example: operator123
+ *               campus:
+ *                 type: string
+ *                 example: UNILAG
+ *     responses:
+ *       201:
+ *         description: Operator registered successfully. Awaiting admin approval.
+ *       400:
+ *         description: Missing fields
+ *       409:
+ *         description: Email or phone already registered
+ */
+router.post('/operator/register', registerOperator)
+
+/**
+ * @swagger
  * /api/v1/auth/operator/login:
  *   post:
  *     summary: Operator login — email and password
  *     tags: [Authentication]
- *     description: Operators are onboarded by admin. They cannot self-register.
+ *     description: |
+ *       Operators self-register via POST /operator/register but must be approved
+ *       by an admin before they can log in. Unapproved or rejected accounts
+ *       receive a 401.
  *     requestBody:
  *       required: true
  *       content:
@@ -394,7 +447,7 @@ router.post('/admin/login', loginAdmin)
  *       200:
  *         description: Operator login successful
  *       401:
- *         description: Invalid credentials or account deactivated
+ *         description: Invalid credentials, account deactivated, not yet approved, or rejected
  */
 router.post('/operator/login', loginOperator)
 

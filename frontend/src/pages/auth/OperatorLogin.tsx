@@ -199,6 +199,17 @@ export default function OperatorLogin() {
               </button>
             </div>
 
+         
+            <p className="text-center mt-4">
+                          <button
+                            type="button"
+                            onClick={() => navigate('/operator-register')}
+                            className="text-sm text-amber-600 font-semibold hover:text-amber-700 transition-colors"
+                          >
+                            New operator? Apply here →
+                          </button>
+            </p>
+
             {/* Info note */}
             <div className="mt-5 flex items-start gap-2.5 p-3.5 bg-amber-50 rounded-2xl border border-amber-100">
               <MdSecurity

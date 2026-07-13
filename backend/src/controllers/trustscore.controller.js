@@ -102,34 +102,40 @@ const getRNPLStudents = async (req, res) => {
 
 // Add to trustscore.controller.js
 
+// Backend — GET /api/v1/trust/leaderboard
 const getLeaderboard = async (req, res) => {
   const { campus } = req.query
 
-  const filter = { role: 'student' }
+  const filter = {
+    role: 'student',
+    isActive: true,
+    trustScore: { $gt: 0 }
+  }
+
   if (campus) filter.campus = campus
 
-  const topStudents = await User.find(filter)
+  const leaders = await User.find(filter)
     .select('name campus trustScore trustLevel totalSuccessfulRentals')
     .sort({ trustScore: -1 })
-    .limit(10)
+    .limit(20)
+    .lean()
+
+  // Anonymise names partially
+  const safe = leaders.map((u, i) => ({
+    rank: i + 1,
+    name: u.name.split(' ')[0] + ' ' + u.name.split(' ').slice(1).map(n => n[0] + '.').join(' '),
+    campus: u.campus,
+    trustScore: u.trustScore,
+    trustLevel: u.trustLevel,
+    successfulRentals: u.totalSuccessfulRentals
+  }))
 
   res.status(200).json({
     success: true,
-    leaderboard: topStudents.map((s, index) => ({
-      rank: index + 1,
-      name: s.name,
-      campus: s.campus,
-      trustScore: s.trustScore,
-      trustLevel: s.trustLevel,
-      successfulRentals: s.totalSuccessfulRentals,
-      badge: index === 0 ? '🥇'
-        : index === 1 ? '🥈'
-        : index === 2 ? '🥉'
-        : '⭐'
-    }))
+    campus: campus || 'all',
+    leaderboard: safe
   })
 }
-
 module.exports = {
   getTrustScore,
   payRNPLDebt,

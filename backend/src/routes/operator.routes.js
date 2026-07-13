@@ -3,7 +3,8 @@ const router = express.Router()
 const {
   getOperatorDashboard, getActiveRentals,
   operatorConfirmReturn, reportDeviceDamaged,
-  getInventory, clockIn, clockOut, searchStudent
+  getInventory, clockIn, clockOut, searchStudent,
+  registerStudentForOperator
 } = require('../controllers/operator.controller')
 const {
   protect, authorize
@@ -201,6 +202,59 @@ router.get(
   protect,
   authorize('operator', 'admin'),
   searchStudent
+)
+
+/**
+ * @swagger
+ * /api/v1/operator/register-student:
+ *   post:
+ *     summary: Operator registers a student on their behalf at the kiosk
+ *     tags: [Operator]
+ *     security:
+ *       - bearerAuth: []
+ *     description: |
+ *       Allows an operator (or admin) to create a student account directly at
+ *       the kiosk. A Nomba virtual account is generated automatically and a
+ *       welcome email with login credentials is sent to the student.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, email, phone]
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: Amaka Okafor
+ *               email:
+ *                 type: string
+ *                 example: amaka@example.com
+ *               phone:
+ *                 type: string
+ *                 example: "08012345678"
+ *               campus:
+ *                 type: string
+ *                 example: LASU
+ *               studentId:
+ *                 type: string
+ *                 example: LASU/2021/0123
+ *               password:
+ *                 type: string
+ *                 description: Optional — auto-generated if omitted
+ *     responses:
+ *       201:
+ *         description: Student registered successfully
+ *       403:
+ *         description: Only operators or admins can register students at kiosk
+ *       409:
+ *         description: Email or phone already registered
+ */
+router.post(
+  '/register-student',
+  protect,
+  authorize('operator', 'admin'),
+  registerStudentForOperator
 )
 
 module.exports = router

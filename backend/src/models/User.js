@@ -70,6 +70,25 @@ rnplDueDate: {
   type: Date,
   default: null
 },
+registeredByOperator: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'User',
+  default: null
+},
+approvalStatus: {
+  type: String,
+  enum: ['pending', 'approved', 'rejected'],
+  default: 'approved'  // Students auto-approved, operators start pending
+},
+approvedBy: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'User',
+  default: null
+},
+approvedAt: {
+  type: Date,
+  default: null
+},
 trustLevel: {
   type: String,
   enum: ['basic', 'trusted', 'silver', 'gold'],

@@ -27,6 +27,10 @@ import ResetPassword from './pages/auth/ResetPassword'
 import ResetVerifyOTP from './pages/auth/ResetVerifyOTP'
 // Add import
 import PaymentVerify from './pages/payment/PaymentVerify'
+// Add route for operator registration
+import OperatorRegister from './pages/auth/OperatorRegister'
+
+
 
 
 // Lazy loaded
@@ -107,7 +111,7 @@ const App = () => (
         <Route path="/forgot-password" element={<ForgetPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/reset-verify-otp" element={<ResetVerifyOTP />} />
-
+           <Route path="/operator-register" element={<OperatorRegister />} />
         {/* Student */}
         <Route element={<ProtectedRoute role="student"><StudentLayout /></ProtectedRoute>}>
           <Route path="/dashboard" element={<Dashboard />} />

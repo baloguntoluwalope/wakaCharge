@@ -453,7 +453,18 @@ const getAnalytics = async (req, res) => {
     }
   })
 }
+const getPendingOperators = async (req, res) => {
+  const pending = await User.find({
+    role: 'operator',
+    approvalStatus: 'pending'
+  }).select('-password').sort({ createdAt: -1 })
 
+  res.status(200).json({
+    success: true,
+    count: pending.length,
+    operators: pending
+  })
+}
 module.exports = {
   getAdminDashboard,
   getAllUsers,
@@ -464,5 +475,6 @@ module.exports = {
   getRevenue,
   deactivateUser,
   activateUser,
-  getAnalytics
+  getAnalytics,
+  getpendingOperators
 }
